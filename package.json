@@ -1,0 +1,58 @@
+{
+  "name": "arcade-os",
+  "version": "1.0.0",
+  "description": "Arcade OS - The Ultimate Desktop Gaming & App Launcher",
+  "main": "electron/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "electron": "wait-on http://localhost:5173 && electron .",
+    "start": "concurrently -k \"npm run dev\" \"npm run electron\"",
+    "dist": "npm run build && electron-builder",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "framer-motion": "^11.0.0",
+    "lucide-react": "^0.383.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "react-router-dom": "^6.23.0",
+    "systeminformation": "^5.31.5",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^8.2.0",
+    "electron": "^41.2.0",
+    "electron-builder": "^26.8.1",
+    "vite": "^8.0.8",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.arcadeos.app",
+    "productName": "Arcade OS",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "preload.js"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "public/icons/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "public/icons/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "public/icons/icon.png"
+    }
+  }
+}
