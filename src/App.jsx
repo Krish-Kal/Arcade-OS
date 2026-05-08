@@ -1,4 +1,3 @@
- // Arcade OS - Root App Component
 import React, { useEffect } from 'react'
 import { useStore } from './store/useStore'
 import TitleBar from './components/TitleBar'
@@ -8,12 +7,19 @@ import Home from './pages/Home'
 import Games from './pages/Games'
 import Apps from './pages/Apps'
 import AIHub from './pages/AIHub'
-import FileExplorer from './pages/FileExplorer'
+import FileExplorer from './pages/FileExplorer/FileExplorer'
 import Settings from './pages/Settings'
 
-const PAGES = { home: Home, games: Games, apps: Apps, aihub: AIHub, files: FileExplorer, settings: Settings }
+const PAGES = {
+  home: Home,
+  games: Games,
+  apps: Apps,
+  aihub: AIHub,
+  files: FileExplorer,
+  settings: Settings
+}
 
-// 🎮 FPS Counter Component
+// 🎮 OPTIONAL FPS Counter (kept reusable, not tied to settings anymore)
 function FPSCounter() {
   const [fps, setFps] = React.useState(0)
 
@@ -48,9 +54,9 @@ function FPSCounter() {
       zIndex: 9999,
       opacity: 0.8,
       padding: '4px 8px',
-borderRadius: 8,
-background: 'rgba(0,0,0,0.25)',
-backdropFilter: 'blur(8px)',
+      borderRadius: 8,
+      background: 'rgba(0,0,0,0.25)',
+      backdropFilter: 'blur(8px)',
     }}>
       {fps} FPS
     </div>
@@ -58,49 +64,8 @@ backdropFilter: 'blur(8px)',
 }
 
 export default function App() {
-const { activePage, settings } = useStore()
+  const { activePage } = useStore()
   const PageComponent = PAGES[activePage] || Home
-
-
-
-  // 🎨 ACCENT COLOR SYSTEM (FIXED)
-  useEffect(() => {
-    const root = document.documentElement
-
-    const colors = {
-      cyan: '#00d4ff',
-      purple: '#7c3aed',
-      pink: '#ec4899',
-      green: '#10b981',
-      amber: '#f59e0b',
-    }
-
-    const selected = colors[settings.accentColor] || '#00d4ff'
-
-    // Apply globally
-    root.style.setProperty('--accent-cyan', selected)
-    root.style.setProperty('--accent-main', selected)
-
-  }, [settings.accentColor])
-
-  // ⚡ ANIMATIONS TOGGLE
-  useEffect(() => {
-    const body = document.body
-
-    if (!settings.animations) {
-      body.classList.add('no-animations')
-    } else {
-      body.classList.remove('no-animations')
-    }
-  }, [settings.animations])
-
-  // 📺 SCANLINES FIX (GLOBAL)
-  useEffect(() => {
-    document.documentElement.style.setProperty(
-      '--scanline-opacity',
-      settings.scanlines ? '1' : '0'
-    )
-  }, [settings.scanlines])
 
   return (
     <div style={{
@@ -112,7 +77,12 @@ const { activePage, settings } = useStore()
     }}>
       <TitleBar />
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden',gap: 0,}}>
+      <div style={{
+        display: 'flex',
+        flex: 1,
+        overflow: 'hidden',
+        gap: 0,
+      }}>
         <Sidebar />
 
         <main style={{
@@ -128,16 +98,16 @@ const { activePage, settings } = useStore()
             maxWidth: 1500,
             height: '100%',
             overflow: 'hidden'
-        }}>
-  <PageComponent />
-</div>
+          }}>
+            <PageComponent />
+          </div>
         </main>
       </div>
 
       <NotificationStack />
 
-      {/* 🎮 FPS Toggle */}
-      {settings.showFPS && <FPSCounter />}
+      {/* If you ever want FPS back, just uncomment */}
+      {/* <FPSCounter /> */}
     </div>
   )
-} 
+}

@@ -26,6 +26,11 @@ contextBridge.exposeInMainWorld('arcadeOS', {
     readDir: (path) => ipcRenderer.invoke('fs:readDir', path),
     homeDir: () => ipcRenderer.invoke('fs:homeDir'),
     drives: () => ipcRenderer.invoke('fs:drives'),
+    selectIconFile: () => ipcRenderer.invoke('fs:selectIconFile'),
+saveFolderIcon: (folderPath, iconPath) => ipcRenderer.invoke('fs:saveFolderIcon', folderPath, iconPath),
+getAllFolderIcons: () => ipcRenderer.invoke('fs:getAllFolderIcons'),
+removeFolderIcon: (folderPath) => ipcRenderer.invoke('fs:removeFolderIcon', folderPath),
+readIconAsBase64: (path) => ipcRenderer.invoke('fs:readIconAsBase64', path),
   },
 
   // Launcher
@@ -37,4 +42,5 @@ contextBridge.exposeInMainWorld('arcadeOS', {
   system: {
     info: () => ipcRenderer.invoke('system:info'),
   },
+  
 })

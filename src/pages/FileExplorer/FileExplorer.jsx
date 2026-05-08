@@ -1,19 +1,19 @@
-// FileExplorer Page - PREMIUM ENHANCED (Grid + Table + Micro-interactions)
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Folder, File, ChevronRight, ChevronLeft, Home, HardDrive, RefreshCw, LayoutGrid, List, AppWindow, FileText, Sheet, Image, Video, Archive } from 'lucide-react'
-import { useStore } from '../store/useStore'
+import { useStore }  from '../../store/useStore'
+import { useFolderIcons } from './hooks/useFolderIcons'
+
+// ─── IMPORT the new hook ──────────────────────────────────────────────────────
+// import { useFolderIcons } from '../hooks/useFolderIcons'
+// (Inline definition below for portability — move to hooks/ in your project)
 
 const isElectron = typeof window !== 'undefined' && window.arcadeOS
 
 const EXEC_EXTS = ['.exe', '.app', '.sh', '.bat', '.cmd', '.lnk', '.msi']
 const GAME_KEYWORDS = ['game', 'steam', 'epic', 'gog', 'uplay', 'origin', 'battlenet']
 const HIDDEN_FOLDERS = [
-  '$recycle.bin',
-  'system volume information',
-  'thumbs.db',
-  'desktop.ini',
-  'ntuser.dat',
-  'iconcache.db'
+  '$recycle.bin', 'system volume information', 'thumbs.db',
+  'desktop.ini', 'ntuser.dat', 'iconcache.db',
 ]
 const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.webp', '.gif']
 const VIDEO_EXTS = ['.mp4', '.webm', '.mov']
@@ -28,22 +28,9 @@ const cleanEntries = (list) =>
     if (!e || typeof e !== 'object') return false
     const name = safeName(e.name)
     const nameLower = name.toLowerCase()
-    
-    // Hide OS hidden/system attributes
-    if (e.hidden === true || e.isHidden === true || e.attributes?.hidden === true) {
-      return false
-    }
-    
-    // Hide dot-files (Unix/Linux hidden convention)
-    if (name.startsWith('.')) {
-      return false
-    }
-    
-    // Hide known system files and folders
-    if (HIDDEN_FOLDERS.some(h => nameLower.includes(h))) {
-      return false
-    }
-    
+    if (e.hidden === true || e.isHidden === true || e.attributes?.hidden === true) return false
+    if (name.startsWith('.')) return false
+    if (HIDDEN_FOLDERS.some(h => nameLower.includes(h))) return false
     return true
   })
 
@@ -54,38 +41,58 @@ function formatSize(bytes) {
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
 }
+function getThumbnail(entry, iconCache = {}) {
+  if (!entry) return null
 
-function getFolderStyle(entry, hovered, recentPaths = []) {
+  const path = safePath(entry.path)
+  const ext = safeExt(entry.ext)
+
+  // 1. Cached icon (important for performance)
+  if (iconCache[path]) return iconCache[path]
+
+  // 2. Images → direct thumbnail
+  if (IMAGE_EXTS.includes(ext)) {
+    return `file://${path}`
+  }
+
+  // 3. PDFs → try preview placeholder (or real thumbnail later)
+  if (ext === '.pdf') {
+    return '/icons/pdf-thumbnail.png' // fallback image
+  }
+
+  return null
+}
+
+// ── ENHANCED: richer per-state folder styling ─────────────────────────────────
+function getFolderStyle(entry, hovered, active, recentPaths = []) {
   const safeEntry = entry || {}
   const isDir = Boolean(safeEntry.isDirectory)
   const path = safePath(safeEntry.path).toLowerCase()
   const name = safeName(safeEntry.name).toLowerCase()
   const children = safeEntry.children
   const isGameFolder = isDir && GAME_KEYWORDS.some(k => path.includes(k) || name.includes(k))
-  const isEmpty = isDir && (
-    children === undefined ||
-    (Array.isArray(children) && children.length === 0)
-  )
+  const isEmpty = isDir && (children === undefined || (Array.isArray(children) && children.length === 0))
   const isRecent = isDir && recentPaths.some(p => String(p || '').toLowerCase() === path)
 
-  const color = isEmpty
-    ? '#7c8ea0'
-    : isGameFolder
-      ? '#c084fc'
-      : '#a78bfa'
+  // State-aware color tinting
+  const baseColor = isEmpty ? '#7c8ea0' : isGameFolder ? '#c084fc' : '#a78bfa'
+  const color = active
+    ? (isEmpty ? '#9bafc4' : isGameFolder ? '#d8b4fe' : '#c4b5fd')
+    : hovered
+      ? (isEmpty ? '#8fa3b8' : isGameFolder ? '#cb96fd' : '#b4a0fb')
+      : baseColor
+
+  const glowIntensity = active ? 16 : hovered ? 12 : 6
+  const glowOpacity = active ? 0.85 : hovered ? 0.72 : 0.38
   const primaryGlow = isGameFolder
-    ? `drop-shadow(0 0 ${hovered ? 12 : 8}px rgba(124,58,237,0.72))`
-    : `drop-shadow(0 0 ${hovered ? 8 : 4}px rgba(124,58,237,0.35))`
+    ? `drop-shadow(0 0 ${glowIntensity}px rgba(124,58,237,${glowOpacity}))`
+    : `drop-shadow(0 0 ${glowIntensity * 0.7}px rgba(124,58,237,${glowOpacity * 0.55}))`
+
   const recentGlow = isRecent ? 'drop-shadow(0 0 10px rgba(124,58,237,0.18))' : ''
-  const scale = hovered ? 1.05 : 1
+  const scale = active ? 1.08 : hovered ? 1.05 : 1
   const animation = isGameFolder ? 'folderPulse 4s ease-in-out infinite' : undefined
 
-  return {
-    color,
-    glow: [primaryGlow, recentGlow].filter(Boolean).join(' '),
-    scale,
-    animation,
-  }
+  return { color, glow: [primaryGlow, recentGlow].filter(Boolean).join(' '), scale, animation }
 }
 
 function getEntryPreview(entry) {
@@ -102,86 +109,78 @@ function getEntryPreview(entry) {
 function resolvePreviewSrc(path) {
   if (!path) return ''
   const normalized = String(path).replace(/\\/g, '/')
-  if (/^[A-Za-z]:\//.test(normalized) || normalized.startsWith('/')) {
-    return `file://${normalized}`
-  }
+  if (/^[A-Za-z]:\//.test(normalized) || normalized.startsWith('/')) return `file://${normalized}`
   return normalized
 }
 
 function getFileIcon(ext) {
   if (!ext) return File
   const lower = String(ext).toLowerCase()
-  
-  if (['.exe', '.msi', '.app', '.bat', '.cmd', '.sh', '.lnk'].includes(lower)) {
-    return AppWindow
-  }
-  if (['.txt', '.doc', '.docx'].includes(lower)) {
-    return FileText
-  }
-  if (['.xls', '.xlsx'].includes(lower)) {
-    return Sheet
-  }
-  if (lower === '.pdf') {
-    return FileText
-  }
-  if (['.png', '.jpg', '.jpeg', '.webp', '.gif'].includes(lower)) {
-    return Image
-  }
-  if (['.mp4', '.mov', '.webm'].includes(lower)) {
-    return Video
-  }
-  if (['.zip', '.rar', '.7z'].includes(lower)) {
-    return Archive
-  }
-  
+  if (['.exe', '.msi', '.app', '.bat', '.cmd', '.sh', '.lnk'].includes(lower)) return AppWindow
+  if (['.txt', '.doc', '.docx'].includes(lower)) return FileText
+  if (['.xls', '.xlsx'].includes(lower)) return Sheet
+  if (lower === '.pdf') return FileText
+  if (['.png', '.jpg', '.jpeg', '.webp', '.gif'].includes(lower)) return Image
+  if (['.mp4', '.mov', '.webm'].includes(lower)) return Video
+  if (['.zip', '.rar', '.7z'].includes(lower)) return Archive
   return File
 }
 
-// ─── Grid Card ───────────────────────────────────────────────────────────────
-function GridCard({ entry, isSelected, onClick, onDoubleClick, addAsGame, addAsApp, isExecFn, isGamePathFn, recentPaths = [], onContextMenu, renamingPath, renameValue, onRenameChange, onRenameConfirm, onRenameCancel, iconCache, loadIcon }) {
+// ─── ENHANCED Grid Card ───────────────────────────────────────────────────────
+function GridCard({
+  entry, isSelected, onClick, onDoubleClick,
+  addAsGame, addAsApp, isExecFn, isGamePathFn, recentPaths = [],
+  onContextMenu, renamingPath, renameValue, onRenameChange,
+  onRenameConfirm, onRenameCancel, iconCache, loadIcon,
+  customIconSrc, isIconTransitioning,
+}) {
   const [hovered, setHovered] = useState(false)
   const [pressed, setPressed] = useState(false)
   const safeEntry = entry || {}
   const entryPath = safePath(safeEntry.path)
   const entryName = safeName(safeEntry.name)
   const entryExt = safeExt(safeEntry.ext)
+    const thumbnail = getThumbnail(safeEntry, iconCache)
   const entrySize = Number(safeEntry.size || 0)
   const entryIsDirectory = Boolean(safeEntry.isDirectory)
   const exec = isExecFn(safeEntry)
   const likelyGame = exec && isGamePathFn(safeEntry)
-  const folderStyle = getFolderStyle(safeEntry, hovered, recentPaths)
+  // ENHANCED: pass hovered + pressed(active) state
+  const folderStyle = getFolderStyle(safeEntry, hovered, pressed, recentPaths)
+
 
   useEffect(() => {
-    if (entryPath && !entryIsDirectory) {
-      loadIcon?.(safeEntry)
-    }
+    if (entryPath && !entryIsDirectory) loadIcon?.(safeEntry)
   }, [entryPath, entryIsDirectory, loadIcon])
 
   const cardStyle = {
     position: 'relative',
     borderRadius: 16,
     padding: '18px 14px 14px',
+    // ENHANCED: slightly more depth in gradient
     background: isSelected
-  ? 'linear-gradient(145deg, rgba(139,92,246,0.22), rgba(11,18,32,0.75))'
-  : 'linear-gradient(145deg, rgba(17,24,39,0.65), rgba(11,18,32,0.65))',
+      ? 'linear-gradient(145deg, rgba(139,92,246,0.24), rgba(11,18,32,0.80))'
+      : hovered
+        ? 'linear-gradient(145deg, rgba(25,32,52,0.80), rgba(14,20,38,0.80))'
+        : 'linear-gradient(145deg, rgba(17,24,39,0.70), rgba(11,18,32,0.70))',
     border: isSelected
-      ? '1px solid rgba(167,139,250,0.7)'
+      ? '1px solid rgba(167,139,250,0.72)'
       : hovered
         ? '1px solid rgba(167,139,250,0.55)'
         : '1px solid rgba(124,58,237,0.22)',
     backdropFilter: 'blur(12px)',
     cursor: 'pointer',
-    transition: 'all 0.22s ease',
+    transition: 'all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1)',
     transform: pressed
       ? 'translateY(-1px) scale(0.97)'
       : hovered
         ? 'translateY(-4px) scale(1.03)'
         : 'translateY(0) scale(1)',
     boxShadow: isSelected
-      ? '0 8px 28px rgba(124,58,237,0.45)'
+      ? '0 8px 28px rgba(124,58,237,0.45), inset 0 1px 0 rgba(255,255,255,0.05)'
       : hovered
-        ? '0 10px 30px rgba(124,58,237,0.35)'
-        : '0 2px 8px rgba(0,0,0,0.3)',
+        ? '0 10px 30px rgba(124,58,237,0.35), inset 0 1px 0 rgba(255,255,255,0.04)'
+        : '0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -191,6 +190,13 @@ function GridCard({ entry, isSelected, onClick, onDoubleClick, addAsGame, addAsA
   }
 
   const isRenaming = entryPath === renamingPath
+
+  // ENHANCED: icon with fade+scale transition for custom icon changes
+  const iconTransitionStyle = {
+    transition: 'opacity 0.2s ease, transform 0.2s ease',
+    opacity: isIconTransitioning ? 0.4 : 1,
+    transform: isIconTransitioning ? 'scale(0.88)' : 'scale(1)',
+  }
 
   return (
     <div
@@ -203,93 +209,86 @@ function GridCard({ entry, isSelected, onClick, onDoubleClick, addAsGame, addAsA
       onMouseDown={() => setPressed(true)}
       onMouseUp={() => setPressed(false)}
     >
-      {/* Game badge */}
       {likelyGame && (
         <span style={{
-          position: 'absolute',
-          top: 8,
-          right: 8,
-          fontSize: 8,
-          fontWeight: 700,
-          padding: '2px 6px',
-          borderRadius: 999,
-          background: 'linear-gradient(90deg,#7c3aed,#a78bfa)',
-          color: '#fff',
-          boxShadow: '0 0 8px rgba(124,58,237,0.6)',
-          letterSpacing: '0.5px',
+          position: 'absolute', top: 8, right: 8,
+          fontSize: 8, fontWeight: 700, padding: '2px 6px', borderRadius: 999,
+          background: 'linear-gradient(90deg,#7c3aed,#a78bfa)', color: '#fff',
+          boxShadow: '0 0 8px rgba(124,58,237,0.6)', letterSpacing: '0.5px',
         }}>GAME</span>
       )}
 
-      {/* Icon */}
+      {/* Icon area */}
       <div style={{
-        filter: entryIsDirectory
-          ? `${folderStyle.glow}${hovered ? ' brightness(1.05)' : ''}`
-          : hovered
-            ? 'drop-shadow(0 0 8px rgba(124,58,237,0.8))'
-            : 'drop-shadow(0 0 3px rgba(124,58,237,0.2))',
-        transform: entryIsDirectory ? `scale(${folderStyle.scale})` : undefined,
-        animation: entryIsDirectory ? folderStyle.animation : undefined,
-        transition: 'all 0.2s ease',
+        filter: entryIsDirectory && !customIconSrc
+          ? `${folderStyle.glow}${hovered ? ' brightness(1.06)' : ''}`
+          : hovered ? 'drop-shadow(0 0 8px rgba(124,58,237,0.8))' : 'drop-shadow(0 0 3px rgba(124,58,237,0.2))',
+        transform: entryIsDirectory && !customIconSrc ? `scale(${folderStyle.scale})` : undefined,
+        animation: entryIsDirectory && !customIconSrc ? folderStyle.animation : undefined,
+        transition: 'all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
         marginTop: 4,
+        ...iconTransitionStyle,
       }}>
+        {/* ENHANCED: custom icon overrides folder/file default */}
         {entryIsDirectory ? (
-          <Folder size={36} color={folderStyle.color} style={{ transition: 'color 0.2s' }} />
-        ) : (() => {
-          const icon = iconCache?.[entryPath]
-          if (icon) {
-            return <img src={icon} alt={entryName} style={{ width: 32, height: 32, objectFit: 'contain' }} />
-          }
-          const IconComponent = getFileIcon(entryExt)
-          return <IconComponent size={32} color={hovered ? '#94a3b8' : '#64748b'} style={{ transition: 'color 0.2s' }} />
-        })()}
+  customIconSrc ? (
+    <img
+  src={customIconSrc}
+  style={{
+    width: 36,
+    height: 36,
+    objectFit: 'contain',
+    borderRadius: 8,
+  }}
+/>
+  ) : (
+    <Folder size={36} color={folderStyle.color} />
+  )
+) : thumbnail ? (
+  <img
+    src={thumbnail}
+    style={{
+      width: 42,
+      height: 42,
+      objectFit: 'cover',
+      borderRadius: 10,
+      boxShadow: '0 0 12px rgba(124,58,237,0.35)',
+    }}
+  />
+) : (() => {
+  const IconComponent = getFileIcon(entryExt)
+  return <IconComponent size={32} color="#64748b" />
+})()}
       </div>
 
       {/* Name */}
       {isRenaming ? (
         <input
-          autoFocus
-          value={renameValue}
+          autoFocus value={renameValue}
           onChange={e => onRenameChange(e.target.value)}
           onBlur={onRenameConfirm}
-          onKeyDown={e => {
-            if (e.key === 'Enter') onRenameConfirm()
-            if (e.key === 'Escape') onRenameCancel()
-          }}
+          onKeyDown={e => { if (e.key === 'Enter') onRenameConfirm(); if (e.key === 'Escape') onRenameCancel() }}
           style={{
-            width: '100%',
-            padding: '7px 10px',
-            borderRadius: 10,
-            border: '1px solid rgba(124,58,237,0.4)',
-            background: 'rgba(15,12,30,0.95)',
-            color: '#e2d9f3',
-            fontSize: 12,
-            outline: 'none',
+            width: '100%', padding: '7px 10px', borderRadius: 10,
+            border: '1px solid rgba(124,58,237,0.4)', background: 'rgba(15,12,30,0.95)',
+            color: '#e2d9f3', fontSize: 12, outline: 'none',
             fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
           }}
         />
       ) : (
         <span style={{
-          fontSize: 12,
-          color: entryIsDirectory ? '#e2d9f3' : '#cbd5e1',
-          textAlign: 'center',
-          width: '100%',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
+          fontSize: 12, color: entryIsDirectory ? '#e2d9f3' : '#cbd5e1',
+          textAlign: 'center', width: '100%', overflow: 'hidden',
+          textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-          fontWeight: entryIsDirectory ? 500 : 400,
-          lineHeight: 1.3,
-        }}>
-          {entryName}
-        </span>
+          fontWeight: entryIsDirectory ? 500 : 400, lineHeight: 1.3,
+        }}>{entryName}</span>
       )}
 
-      {/* Size */}
       {!entryIsDirectory && entrySize > 0 && (
         <span style={{ fontSize: 10, color: '#64748b' }}>{formatSize(entrySize)}</span>
       )}
 
-      {/* Action buttons */}
       {exec && (
         <div style={{ display: 'flex', gap: 5, marginTop: 2, width: '100%', justifyContent: 'center' }}>
           <QuickAddBtn label="+ Game" onClick={e => { e.stopPropagation(); addAsGame(entry) }} small />
@@ -300,10 +299,15 @@ function GridCard({ entry, isSelected, onClick, onDoubleClick, addAsGame, addAsA
   )
 }
 
-// ─── Grid View ───────────────────────────────────────────────────────────────
-function GridView({ entries, selected, onEntryClick, onOpen, addAsGame, addAsApp, isExecFn, isGamePathFn, recentPaths = [], onContextMenu, renamingPath, renameValue, onRenameChange, onRenameConfirm, onRenameCancel, iconCache, loadIcon }) {
-  const safeEntries = Array.isArray(entries) ? entries : []
-  if (!safeEntries.length) {
+// ─── Grid View ────────────────────────────────────────────────────────────────
+function GridView({
+  entries, selected, onEntryClick, onOpen, addAsGame, addAsApp,
+  isExecFn, isGamePathFn, recentPaths = [], onContextMenu,
+  renamingPath, renameValue, onRenameChange, onRenameConfirm, onRenameCancel,
+  iconCache, loadIcon, getCustomIcon, isTransitioning,
+}) {
+  const list = Array.isArray(entries) ? entries : []
+  if (!list.length) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
         No files to display
@@ -315,41 +319,43 @@ function GridView({ entries, selected, onEntryClick, onOpen, addAsGame, addAsApp
     <div style={{
       display: 'grid',
       gridTemplateColumns: 'repeat(auto-fill, minmax(145px, 1fr))',
-      gap: 14,
-      padding: 16,
-      overflowY: 'auto',
-      flex: 1,
-      alignContent: 'start',
+      gap: 14, padding: 16, overflowY: 'auto', flex: 1, alignContent: 'start',
     }}>
       <style>{`
         @keyframes cardFadeIn {
           from { opacity: 0; transform: translateY(12px) scale(0.98); }
-          to   { opacity: 1; transform: translateY(0)  scale(1);    }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
         }
       `}</style>
-      {safeEntries.map((entry, i) => (
-        <div key={i} style={{ animationDelay: `${i * 18}ms` }}>
-          <GridCard
-            entry={entry}
-            isSelected={selected === safePath(entry?.path)}
-            onClick={() => onEntryClick(entry)}
-            onDoubleClick={() => onOpen(entry)}
-            addAsGame={addAsGame}
-            addAsApp={addAsApp}
-            isExecFn={isExecFn}
-            isGamePathFn={isGamePathFn}
-            recentPaths={recentPaths}
-            onContextMenu={onContextMenu}
-            renamingPath={renamingPath}
-            renameValue={renameValue}
-            onRenameChange={onRenameChange}
-            onRenameConfirm={onRenameConfirm}
-            onRenameCancel={onRenameCancel}
-            iconCache={iconCache}
-            loadIcon={loadIcon}
-          />
-        </div>
-      ))}
+      {list.map((entry, i) => {
+        const entryPath = safePath(entry?.path)
+        const customIconSrc = entry?.isDirectory ? getCustomIcon(entryPath) : null
+        return (
+          <div key={i} style={{ animationDelay: `${i * 18}ms` }}>
+            <GridCard
+              entry={entry}
+              isSelected={selected === entryPath}
+              onClick={() => onEntryClick(entry)}
+              onDoubleClick={() => onOpen(entry)}
+              addAsGame={addAsGame}
+              addAsApp={addAsApp}
+              isExecFn={isExecFn}
+              isGamePathFn={isGamePathFn}
+              recentPaths={recentPaths}
+              onContextMenu={onContextMenu}
+              renamingPath={renamingPath}
+              renameValue={renameValue}
+              onRenameChange={onRenameChange}
+              onRenameConfirm={onRenameConfirm}
+              onRenameCancel={onRenameCancel}
+              iconCache={iconCache}
+              loadIcon={loadIcon}
+              customIconSrc={customIconSrc}
+              isIconTransitioning={isTransitioning(entryPath)}
+            />
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -370,6 +376,9 @@ export default function FileExplorer() {
   const [renameValue, setRenameValue] = useState('')
   const [iconCache, setIconCache] = useState({})
   const contextMenuRef = useRef(null)
+
+  // ── FOLDER ICONS HOOK ─────────────────────────────────────────────────────
+  const { assignIcon, removeIcon, getIcon, isTransitioning } = useFolderIcons()
 
   useEffect(() => {
     if (!isElectron) {
@@ -400,9 +409,7 @@ export default function FileExplorer() {
       const list = cleanEntries(raw)
       list.sort((a, b) => {
         if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
-        const nameA = safeName(a.name).toLowerCase()
-        const nameB = safeName(b.name).toLowerCase()
-        return nameA.localeCompare(nameB)
+        return safeName(a.name).toLowerCase().localeCompare(safeName(b.name).toLowerCase())
       })
       setEntries(list)
       setCurrentPath(path)
@@ -423,8 +430,7 @@ export default function FileExplorer() {
     setHistory(prev => {
       if (prev.length <= 1) return prev
       const newHistory = prev.slice(0, -1)
-      const prevPath = newHistory[newHistory.length - 1]
-      navigateTo(prevPath, true)
+      navigateTo(newHistory[newHistory.length - 1], true)
       return newHistory
     })
   }, [navigateTo])
@@ -453,34 +459,16 @@ export default function FileExplorer() {
   }
 
   const closeContextMenu = () => setContextMenu({ visible: false, x: 0, y: 0, entry: null })
+
   const handleContextMenu = (entry, event) => {
     if (!entry || typeof entry !== 'object') return
     event.preventDefault()
-    
-    const menuWidth = 190
-    const menuHeight = 220
-    
-    let x = event.clientX
-    let y = event.clientY
-    
-    const vw = window.innerWidth
-    const vh = window.innerHeight
-    
-    if (x + menuWidth > vw) {
-      x = vw - menuWidth - 8
-    }
-    
-    if (y + menuHeight > vh) {
-      y = vh - menuHeight - 8
-    }
-    
+    const menuWidth = 200
+    const menuHeight = entry?.isDirectory ? 270 : 220
+    let x = Math.min(event.clientX, window.innerWidth - menuWidth - 8)
+    let y = Math.min(event.clientY, window.innerHeight - menuHeight - 8)
     setSelected(safePath(entry.path))
-    setContextMenu({
-      visible: true,
-      x,
-      y,
-      entry
-    })
+    setContextMenu({ visible: true, x, y, entry })
   }
 
   const startRename = (entry) => {
@@ -513,121 +501,69 @@ export default function FileExplorer() {
     closeContextMenu()
   }
 
-  const addAsGame = (entry) => {
-    const name = safeName(entry?.name).replace(/\.[^.]+$/, '')
-    return addGame({ name, path: safePath(entry?.path), genre: 'Other' })
-  }
-  const addAsApp = (entry) => {
-    const name = safeName(entry?.name).replace(/\.[^.]+$/, '')
-    return addApp({ name, path: safePath(entry?.path), category: 'Other' })
-  }
+  const addAsGame = (entry) => addGame({ name: safeName(entry?.name).replace(/\.[^.]+$/, ''), path: safePath(entry?.path), genre: 'Other' })
+  const addAsApp = (entry) => addApp({ name: safeName(entry?.name).replace(/\.[^.]+$/, ''), path: safePath(entry?.path), category: 'Other' })
 
   const loadIcon = useCallback(async (entry) => {
-    const safeEntry = entry || {}
-    const entryPath = safePath(safeEntry.path)
-    if (!isElectron || safeEntry.isDirectory || !entryPath) return null
+    const entryPath = safePath(entry?.path)
+    if (!isElectron || entry?.isDirectory || !entryPath) return null
     if (iconCache?.[entryPath]) return iconCache[entryPath]
-
     try {
       const icon = await window.arcadeOS.fs.getFileIcon(entryPath)
       if (icon) {
         setIconCache(prev => prev?.[entryPath] ? prev : ({ ...prev, [entryPath]: icon }))
         return icon
       }
-    } catch {
-      return null
-    }
+    } catch {}
     return null
   }, [iconCache])
 
   const isExec = (entry) => EXEC_EXTS.includes(safeExt(entry?.ext))
-  const isGamePath = (entry) => {
-    const path = safePath(entry?.path).toLowerCase()
-    return GAME_KEYWORDS.some(k => path.includes(k))
-  }
+  const isGamePath = (entry) => GAME_KEYWORDS.some(k => safePath(entry?.path).toLowerCase().includes(k))
   const breadcrumbs = safePath(currentPath).split('/').filter(Boolean)
   const recentPaths = history.slice(-3)
-  const safeEntryList = Array.isArray(entries) ? entries.filter(e => e && typeof e === 'object') : []
+  const safeEntryList = useMemo(() =>
+    Array.isArray(entries) ? entries.filter(e => e && typeof e === 'object') : [],
+    [entries]
+  )
   const selectedEntry = safeEntryList.find(entry => safePath(entry?.path) === selected)
 
   const moveSelection = (delta) => {
     if (!safeEntryList.length) return
-    const currentIndex = safeEntryList.findIndex(entry => safePath(entry?.path) === selected)
-    if (currentIndex === -1) {
-      setSelected(safePath(safeEntryList[0]?.path))
-      return
-    }
-    const nextIndex = currentIndex + delta
-    if (nextIndex < 0 || nextIndex >= safeEntryList.length) return
-    setSelected(safePath(safeEntryList[nextIndex]?.path))
+    const idx = safeEntryList.findIndex(e => safePath(e?.path) === selected)
+    if (idx === -1) { setSelected(safePath(safeEntryList[0]?.path)); return }
+    const next = idx + delta
+    if (next < 0 || next >= safeEntryList.length) return
+    setSelected(safePath(safeEntryList[next]?.path))
   }
 
   useEffect(() => {
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        if (contextMenu.visible) {
-          closeContextMenu()
-          return
-        }
-        if (renamingPath) {
-          cancelRename()
-          return
-        }
-        setSelected(null)
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (contextMenu.visible) { closeContextMenu(); return }
+        if (renamingPath) { cancelRename(); return }
+        setSelected(null); return
+      }
+      if (e.key === 'F2' && selectedEntry) { e.preventDefault(); startRename(selectedEntry); return }
+      if (e.key === 'Enter' && !renamingPath && selectedEntry) {
+        e.preventDefault()
+        if (selectedEntry.isDirectory) navigateTo(selectedEntry.path)
+        else openFile(selectedEntry)
         return
       }
-
-      if (event.key === 'F2') {
-        if (selectedEntry) {
-          event.preventDefault()
-          startRename(selectedEntry)
-        }
-        return
-      }
-
-      if (event.key === 'Enter') {
-        if (renamingPath) return
-        if (selectedEntry) {
-          event.preventDefault()
-          if (selectedEntry.isDirectory) navigateTo(selectedEntry.path)
-          else openFile(selectedEntry)
-        }
-        return
-      }
-
       if (viewMode === 'table') {
-        if (event.key === 'ArrowUp') {
-          event.preventDefault()
-          moveSelection(-1)
-        }
-        if (event.key === 'ArrowDown') {
-          event.preventDefault()
-          moveSelection(1)
-        }
+        if (e.key === 'ArrowUp') { e.preventDefault(); moveSelection(-1) }
+        if (e.key === 'ArrowDown') { e.preventDefault(); moveSelection(1) }
       }
-
       if (viewMode === 'grid') {
-        if (event.key === 'ArrowLeft') {
-          event.preventDefault()
-          moveSelection(-1)
-        }
-        if (event.key === 'ArrowRight') {
-          event.preventDefault()
-          moveSelection(1)
-        }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); moveSelection(-1) }
+        if (e.key === 'ArrowRight') { e.preventDefault(); moveSelection(1) }
       }
     }
-
-    const handleMouseDown = (event) => {
-      if (contextMenu.visible && contextMenuRef.current && !contextMenuRef.current.contains(event.target)) {
-        closeContextMenu()
-      }
+    const handleMouseDown = (e) => {
+      if (contextMenu.visible && contextMenuRef.current && !contextMenuRef.current.contains(e.target)) closeContextMenu()
     }
-
-    const handleScroll = () => {
-      if (contextMenu.visible) closeContextMenu()
-    }
-
+    const handleScroll = () => { if (contextMenu.visible) closeContextMenu() }
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('mousedown', handleMouseDown)
     window.addEventListener('scroll', handleScroll, true)
@@ -648,10 +584,10 @@ export default function FileExplorer() {
       flexDirection: 'column',
       overflow: 'visible',
       background: `
-radial-gradient(circle at 20% 0%, rgba(109,40,217,0.25), transparent 55%),
-radial-gradient(circle at 80% 100%, rgba(59,130,246,0.15), transparent 60%),
-linear-gradient(180deg, #0b1220, #111827)
-`,
+        radial-gradient(circle at 20% 0%, rgba(109,40,217,0.25), transparent 55%),
+        radial-gradient(circle at 80% 100%, rgba(59,130,246,0.15), transparent 60%),
+        linear-gradient(180deg, #0b1220, #111827)
+      `,
       fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
       letterSpacing: '0.2px',
     }}>
@@ -664,6 +600,13 @@ linear-gradient(180deg, #0b1220, #111827)
           0%, 100% { transform: scale(1); }
           50% { transform: scale(1.04); }
         }
+        @keyframes menuFadeIn {
+          from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .ctx-btn:hover { background: rgba(124,58,237,0.18) !important; }
+        .ctx-btn-danger:hover { background: rgba(239,68,68,0.12) !important; color: #fca5a5 !important; }
+        .ctx-divider { height: 1px; background: rgba(124,58,237,0.14); margin: 4px 8px; }
       `}</style>
 
       {/* ── Toolbar ── */}
@@ -672,34 +615,23 @@ linear-gradient(180deg, #0b1220, #111827)
         borderBottom: '1px solid rgba(124,58,237,0.22)',
         background: 'rgba(11,18,32,0.72)',
         backdropFilter: 'blur(12px)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        flexShrink: 0,
+        display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
       }}>
         <NavIconBtn onClick={goBack} enabled={history.length > 1 && !loading} title="Back">
           <ChevronLeft size={14} />
         </NavIconBtn>
-
         <NavIconBtn onClick={goUp} enabled title="Up">
           <ChevronRight size={14} style={{ transform: 'rotate(-90deg)' }} />
         </NavIconBtn>
-
         <NavIconBtn onClick={() => navigateTo(currentPath)} enabled title="Refresh">
           <RefreshCw size={13} />
         </NavIconBtn>
 
         {/* Breadcrumbs */}
         <div style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 3,
-          overflow: 'hidden',
-          padding: '5px 10px',
-          borderRadius: 7,
-          background: 'rgba(124,58,237,0.07)',
-          border: '1px solid rgba(124,58,237,0.18)',
+          flex: 1, display: 'flex', alignItems: 'center', gap: 3, overflow: 'hidden',
+          padding: '5px 10px', borderRadius: 7,
+          background: 'rgba(124,58,237,0.07)', border: '1px solid rgba(124,58,237,0.18)',
           minWidth: 0,
         }}>
           <Home size={11} color="#a78bfa" style={{ flexShrink: 0 }} />
@@ -712,17 +644,11 @@ linear-gradient(180deg, #0b1220, #111827)
                   navigateTo(p)
                 }}
                 style={{
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
+                  background: 'transparent', border: 'none', cursor: 'pointer',
                   color: i === breadcrumbs.length - 1 ? '#e2d9f3' : '#c4b5fd',
-                  fontSize: 12,
-                  fontWeight: i === breadcrumbs.length - 1 ? 500 : 400,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  maxWidth: 120,
-                  fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+                  fontSize: 12, fontWeight: i === breadcrumbs.length - 1 ? 500 : 400,
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  maxWidth: 120, fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
                   padding: '0 2px',
                 }}
               >{crumb}</button>
@@ -732,23 +658,15 @@ linear-gradient(180deg, #0b1220, #111827)
 
         {/* View toggle */}
         <div style={{
-          display: 'flex',
-          gap: 4,
-          padding: '3px',
-          borderRadius: 8,
-          background: 'rgba(124,58,237,0.08)',
-          border: '1px solid rgba(124,58,237,0.2)',
+          display: 'flex', gap: 4, padding: '3px', borderRadius: 8,
+          background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)',
         }}>
-          <ViewToggleBtn
-            active={viewMode === 'table'}
-            onClick={() => setViewMode('table')}
-            title="List view"
-          ><List size={13} /></ViewToggleBtn>
-          <ViewToggleBtn
-            active={viewMode === 'grid'}
-            onClick={() => setViewMode('grid')}
-            title="Grid view"
-          ><LayoutGrid size={13} /></ViewToggleBtn>
+          <ViewToggleBtn active={viewMode === 'table'} onClick={() => setViewMode('table')} title="List view">
+            <List size={13} />
+          </ViewToggleBtn>
+          <ViewToggleBtn active={viewMode === 'grid'} onClick={() => setViewMode('grid')} title="Grid view">
+            <LayoutGrid size={13} />
+          </ViewToggleBtn>
         </div>
       </div>
 
@@ -756,27 +674,20 @@ linear-gradient(180deg, #0b1220, #111827)
 
         {/* ── Sidebar ── */}
         <div style={{
-          width: 155,
-          borderRight: '1px solid rgba(124,58,237,0.13)',
-          padding: '10px 8px',
-          overflowY: 'auto',
-          flexShrink: 0,
+          width: 155, borderRight: '1px solid rgba(124,58,237,0.13)',
+          padding: '10px 8px', overflowY: 'auto', flexShrink: 0,
           background: 'rgba(11,18,32,0.35)',
         }}>
-          <div style={{ fontSize: 9, color: '#6d4fa0', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', padding: '4px 6px 8px' }}>
-            Drives
-          </div>
+          <div style={{
+            fontSize: 9, color: '#6d4fa0', fontWeight: 700,
+            letterSpacing: '1px', textTransform: 'uppercase', padding: '4px 6px 8px',
+          }}>Drives</div>
           {(isElectron ? drives : ['C:\\', 'D:\\']).map(d => (
-            <SidebarDriveBtn
-              key={d}
-              label={d}
-              active={currentPath.startsWith(d)}
-              onClick={() => navigateTo(d)}
-            />
+            <SidebarDriveBtn key={d} label={d} active={currentPath.startsWith(d)} onClick={() => navigateTo(d)} />
           ))}
         </div>
 
-        {/* ── Main Content ── */}
+        {/* ── Main content ── */}
         {loading && (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a78bfa', fontSize: 13, gap: 8 }}>
             <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
@@ -789,8 +700,9 @@ linear-gradient(180deg, #0b1220, #111827)
           <div style={{ flex: 1, padding: 24, color: '#f87171', fontSize: 13 }}>{error}</div>
         )}
 
+        {/* ── TABLE VIEW ── */}
         {!loading && !error && viewMode === 'table' && (
-          <div style={{ flex: 1, overflowY: 'auto', paddingRight: 0 }}>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '45%' }} />
@@ -798,6 +710,7 @@ linear-gradient(180deg, #0b1220, #111827)
                 <col style={{ width: '13%' }} />
                 <col style={{ width: '30%' }} />
               </colgroup>
+              {/* ENHANCED: slightly darker/higher-contrast header */}
               <thead>
                 <tr>
                   <th style={th}>Name</th>
@@ -808,111 +721,91 @@ linear-gradient(180deg, #0b1220, #111827)
               </thead>
               <tbody>
                 {safeEntryList.map((entry, i) => {
-                  const safeEntry = entry || {}
-                  const entryPath = safePath(safeEntry.path)
-                  const entryName = safeName(safeEntry.name)
-                  const entryExt = safeExt(safeEntry.ext)
-                  const entrySize = Number(safeEntry.size || 0)
-                  const isDirectory = Boolean(safeEntry.isDirectory)
-                  const exec = isExec(safeEntry)
-                  const likelyGame = exec && isGamePath(safeEntry)
+                  const entryPath = safePath(entry?.path)
+                  const entryName = safeName(entry?.name)
+                  const entryExt = safeExt(entry?.ext)
+                  const entrySize = Number(entry?.size || 0)
+                  const isDirectory = Boolean(entry?.isDirectory)
+                  const exec = isExec(entry)
+                  const likelyGame = exec && isGamePath(entry)
                   const isSelected = selected === entryPath
-                  const folderStyle = isDirectory ? getFolderStyle(safeEntry, false, history.slice(-3)) : { glow: '', scale: 1 }
+                  const folderStyle = isDirectory ? getFolderStyle(entry, false, false, history.slice(-3)) : { glow: '', scale: 1 }
+                  // ENHANCED: custom icon in table view
+                  const customIconSrc = isDirectory ? getIcon(entryPath) : null
+                  const transitioning = isTransitioning(entryPath)
+
                   return (
                     <tr key={i}
-                      onClick={() => handleEntry(safeEntry)}
-                      onDoubleClick={() => openFile(safeEntry)}
-                      onContextMenu={e => handleContextMenu(safeEntry, e)}
+                      onClick={() => handleEntry(entry)}
+                      onDoubleClick={() => openFile(entry)}
+                      onContextMenu={e => handleContextMenu(entry, e)}
                       style={{
                         background: isSelected ? 'rgba(139,92,246,0.18)' : 'transparent',
                         cursor: 'pointer',
                         transition: 'background 0.15s ease',
                       }}
-                      onMouseEnter={e => {
-                        if (!isSelected) e.currentTarget.style.background = 'rgba(59,130,246,0.06)'
-                        if (isDirectory) e.currentTarget.style.setProperty('--folder-scale', '1.05')
-                      }}
-                      onMouseLeave={e => {
-                        if (!isSelected) e.currentTarget.style.background = 'transparent'
-                        if (isDirectory) e.currentTarget.style.setProperty('--folder-scale', '1')
-                      }}
+                      onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(59,130,246,0.06)' }}
+                      onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
                     >
                       <td style={td}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 7, overflow: 'hidden' }}>
+                          {/* ENHANCED: icon with transition + custom override */}
                           <span style={{
-                            flexShrink: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            filter: isDirectory ? folderStyle.glow : undefined,
-                            transform: isDirectory ? 'scale(var(--folder-scale, 1))' : undefined,
-                            animation: isDirectory && folderStyle.animation ? folderStyle.animation : undefined,
+                            flexShrink: 0, display: 'flex', alignItems: 'center',
+                            filter: isDirectory && !customIconSrc ? folderStyle.glow : undefined,
                             transition: 'all 0.2s ease',
+                            opacity: transitioning ? 0.5 : 1,
+                            transform: transitioning ? 'scale(0.85)' : 'scale(1)',
                           }}>
-                            {isDirectory ? (
+                            {isDirectory && customIconSrc ? (
+                              <img src={customIconSrc} alt={entryName}
+                                style={{ width: 15, height: 15, objectFit: 'contain', borderRadius: 3 }}
+                              />
+                            ) : isDirectory ? (
                               <Folder size={15} color={folderStyle.color} />
                             ) : (() => {
                               const IconComponent = getFileIcon(entryExt)
                               return <IconComponent size={14} color="#7c8ea0" />
                             })()}
                           </span>
+
                           {entryPath === renamingPath ? (
                             <input
-                              autoFocus
-                              value={renameValue}
+                              autoFocus value={renameValue}
                               onChange={e => setRenameValue(e.target.value)}
                               onBlur={confirmRename}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') confirmRename()
-                                if (e.key === 'Escape') cancelRename()
-                              }}
+                              onKeyDown={e => { if (e.key === 'Enter') confirmRename(); if (e.key === 'Escape') cancelRename() }}
                               style={{
-                                flex: 1,
-                                minWidth: 0,
-                                padding: '7px 10px',
-                                borderRadius: 10,
-                                border: '1px solid rgba(124,58,237,0.4)',
-                                background: 'rgba(15,12,30,0.95)',
-                                color: '#e2d9f3',
-                                fontSize: 13,
-                                outline: 'none',
+                                flex: 1, minWidth: 0, padding: '7px 10px', borderRadius: 10,
+                                border: '1px solid rgba(124,58,237,0.4)', background: 'rgba(15,12,30,0.95)',
+                                color: '#e2d9f3', fontSize: 13, outline: 'none',
                                 fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
                               }}
                             />
                           ) : (
                             <span style={{
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              color: isDirectory ? '#e2d9f3' : '#cbd5e1',
-                              fontSize: 13,
+                              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                              color: isDirectory ? '#e2d9f3' : '#cbd5e1', fontSize: 13,
                             }}>{entryName}</span>
                           )}
+
                           {likelyGame && (
                             <span style={{
-                              flexShrink: 0,
-                              fontSize: 8,
-                              fontWeight: 700,
-                              color: '#fff',
+                              flexShrink: 0, fontSize: 8, fontWeight: 700, color: '#fff',
                               background: 'linear-gradient(90deg,#7c3aed,#a78bfa)',
-                              borderRadius: 999,
-                              padding: '1px 5px',
-                              letterSpacing: '0.5px',
+                              borderRadius: 999, padding: '1px 5px', letterSpacing: '0.5px',
                               boxShadow: '0 0 6px rgba(124,58,237,0.5)',
                             }}>GAME</span>
                           )}
                         </div>
                       </td>
-                      <td style={{ ...td, color: '#94a3b8', fontSize: 12 }}>
-                        {isDirectory ? '—' : formatSize(entrySize)}
-                      </td>
-                      <td style={{ ...td, color: '#94a3b8', fontSize: 12, whiteSpace: 'nowrap' }}>
-                        {isDirectory ? 'Folder' : entryExt}
-                      </td>
+                      <td style={{ ...td, color: '#94a3b8', fontSize: 12 }}>{isDirectory ? '—' : formatSize(entrySize)}</td>
+                      <td style={{ ...td, color: '#94a3b8', fontSize: 12, whiteSpace: 'nowrap' }}>{isDirectory ? 'Folder' : entryExt}</td>
                       <td style={td}>
                         {exec && (
                           <div style={{ display: 'flex', gap: 6 }}>
-                            <QuickAddBtn label="+ Game" onClick={e => { e.stopPropagation(); addAsGame(safeEntry) }} />
-                            <QuickAddBtn label="+ App" onClick={e => { e.stopPropagation(); addAsApp(safeEntry) }} />
+                            <QuickAddBtn label="+ Game" onClick={e => { e.stopPropagation(); addAsGame(entry) }} />
+                            <QuickAddBtn label="+ App" onClick={e => { e.stopPropagation(); addAsApp(entry) }} />
                           </div>
                         )}
                       </td>
@@ -924,6 +817,7 @@ linear-gradient(180deg, #0b1220, #111827)
           </div>
         )}
 
+        {/* ── GRID VIEW ── */}
         {!loading && !error && viewMode === 'grid' && (
           <GridView
             entries={safeEntryList}
@@ -943,47 +837,41 @@ linear-gradient(180deg, #0b1220, #111827)
             onRenameCancel={cancelRename}
             iconCache={iconCache}
             loadIcon={loadIcon}
+            getCustomIcon={getIcon}
+            isTransitioning={isTransitioning}
           />
         )}
       </div>
 
+      {/* ── Preview Panel ── */}
       {preview && (
         <div style={{
-          position: 'absolute',
-          right: 18,
-          bottom: 18,
-          width: 240,
-          maxWidth: 'calc(100% - 32px)',
-          padding: '12px 14px',
-          borderRadius: 16,
-          border: '1px solid rgba(124,58,237,0.22)',
-          background: 'rgba(11,18,32,0.88)',
-          backdropFilter: 'blur(18px)',
-          boxShadow: '0 20px 48px rgba(0,0,0,0.45)',
-          color: '#e2d9f3',
-          zIndex: 12,
+          position: 'absolute', right: 18, bottom: 18, width: 240,
+          maxWidth: 'calc(100% - 32px)', padding: '12px 14px', borderRadius: 16,
+          border: '1px solid rgba(124,58,237,0.22)', background: 'rgba(11,18,32,0.88)',
+          backdropFilter: 'blur(18px)', boxShadow: '0 20px 48px rgba(0,0,0,0.45)',
+          color: '#e2d9f3', zIndex: 12,
         }}>
-          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: '#c4b5fd' }}>
-            Preview
-          </div>
+          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: '#c4b5fd' }}>Preview</div>
           {preview.isImage && (
-            <img src={preview.src} alt={selectedEntry?.name || 'Preview'} style={{ width: '100%', borderRadius: 12, objectFit: 'cover' }} />
+            <img src={preview.src} alt={selectedEntry?.name || 'Preview'}
+              style={{ width: '100%', borderRadius: 12, objectFit: 'cover' }} />
           )}
           {preview.isVideo && (
-            <video src={preview.src} muted controls style={{ width: '100%', borderRadius: 12, background: '#090b13' }} />
+            <video src={preview.src} muted controls
+              style={{ width: '100%', borderRadius: 12, background: '#090b13' }} />
           )}
           {!preview.isImage && !preview.isVideo && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ fontSize: 13, fontWeight: 600 }}>{selectedEntry?.name}</div>
               <div style={{ fontSize: 11, color: '#94a3b8' }}>{preview.typeLabel}</div>
-              {preview.isExecutable && (
-                <div style={{ fontSize: 11, color: '#c4b5fd' }}>Executable file</div>
-              )}
+              {preview.isExecutable && <div style={{ fontSize: 11, color: '#c4b5fd' }}>Executable file</div>}
             </div>
           )}
         </div>
       )}
 
+      {/* ── ENHANCED Context Menu ── */}
       {contextMenu.visible && contextMenu.entry && (
         <div
           ref={contextMenuRef}
@@ -991,55 +879,102 @@ linear-gradient(180deg, #0b1220, #111827)
             position: 'fixed',
             top: contextMenu.y,
             left: contextMenu.x,
-            minWidth: 180,
-            background: 'rgba(11,18,32,0.92)',
-            border: '1px solid rgba(124,58,237,0.22)',
+            minWidth: 192,
+            // ENHANCED: deeper blur + richer depth shadow
+            background: 'rgba(9,14,28,0.94)',
+            border: '1px solid rgba(124,58,237,0.25)',
             borderRadius: 14,
-            backdropFilter: 'blur(18px)',
-            boxShadow: '0 28px 60px rgba(0,0,0,0.45)',
+            backdropFilter: 'blur(24px)',
+            boxShadow: '0 32px 64px rgba(0,0,0,0.55), 0 0 0 1px rgba(124,58,237,0.08)',
             zIndex: 9999,
             overflow: 'hidden',
+            animation: 'menuFadeIn 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+            padding: '4px 0',
           }}
         >
-          <button
+          {/* Open */}
+          <ContextMenuItem
             onClick={() => {
               const entry = contextMenu.entry
               closeContextMenu()
               if (!entry || typeof entry !== 'object') return
-              const path = safePath(entry.path)
-              if (entry.isDirectory) navigateTo(path)
+              if (entry.isDirectory) navigateTo(safePath(entry.path))
               else openFile(entry)
             }}
-            style={menuButtonStyle}
-          >Open</button>
+          >Open</ContextMenuItem>
+
+          {/* Exec-only actions */}
           {contextMenu.entry && !contextMenu.entry.isDirectory && isExec(contextMenu.entry) && (
             <>
-              <button
-                onClick={() => { closeContextMenu(); addAsGame(contextMenu.entry) }}
-                style={menuButtonStyle}
-              >Add as Game</button>
-              <button
-                onClick={() => { closeContextMenu(); addAsApp(contextMenu.entry) }}
-                style={menuButtonStyle}
-              >Add as App</button>
+              <ContextMenuItem onClick={() => { closeContextMenu(); addAsGame(contextMenu.entry) }}>Add as Game</ContextMenuItem>
+              <ContextMenuItem onClick={() => { closeContextMenu(); addAsApp(contextMenu.entry) }}>Add as App</ContextMenuItem>
             </>
           )}
-          <button
-            onClick={() => { startRename(contextMenu.entry) }}
-            style={menuButtonStyle}
-          >Rename</button>
-          <button
+
+          <ContextMenuItem onClick={() => startRename(contextMenu.entry)}>Rename</ContextMenuItem>
+
+          <ContextMenuItem
             onClick={() => {
               const path = contextMenu.entry?.path
               closeContextMenu()
               if (!path || !navigator?.clipboard?.writeText) return
               navigator.clipboard.writeText(path).catch(() => {})
             }}
-            style={menuButtonStyle}
-          >Copy Path</button>
+          >Copy Path</ContextMenuItem>
+
+          {/* FOLDER-ONLY: Custom icon actions */}
+          {contextMenu.entry?.isDirectory && (
+            <>
+              <div className="ctx-divider" />
+              <ContextMenuItem
+                icon="🎨"
+                onClick={async () => {
+                  const entry = contextMenu.entry
+                  closeContextMenu()
+                  if (entry) await assignIcon(safePath(entry.path))
+                }}
+              >Change Icon</ContextMenuItem>
+              <ContextMenuItem
+                icon="♻️"
+                onClick={async () => {
+                  const entry = contextMenu.entry
+                  closeContextMenu()
+                  if (entry) await removeIcon(safePath(entry.path))
+                }}
+              >Reset Icon</ContextMenuItem>
+            </>
+          )}
         </div>
       )}
     </div>
+  )
+}
+
+// ─── Context Menu Item ────────────────────────────────────────────────────────
+function ContextMenuItem({ onClick, children, icon, danger }) {
+  const [hov, setHov] = useState(false)
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        width: '100%', padding: '9px 14px',
+        border: 'none',
+        background: hov
+          ? danger ? 'rgba(239,68,68,0.1)' : 'rgba(124,58,237,0.16)'
+          : 'transparent',
+        color: hov && danger ? '#fca5a5' : '#e2d9f3',
+        textAlign: 'left', cursor: 'pointer',
+        fontSize: 13, lineHeight: 1.4, outline: 'none',
+        display: 'flex', alignItems: 'center', gap: 8,
+        transition: 'background 0.14s ease, color 0.14s ease',
+        fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+      }}
+    >
+      {icon && <span style={{ fontSize: 13, lineHeight: 1, opacity: 0.85 }}>{icon}</span>}
+      {children}
+    </button>
   )
 }
 
@@ -1049,13 +984,10 @@ function NavIconBtn({ onClick, enabled, children, title }) {
   const [hov, setHov] = useState(false)
   return (
     <button
-      onClick={onClick}
-      title={title}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
+      onClick={onClick} title={title}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{
-        width: 30, height: 30,
-        borderRadius: 7,
+        width: 30, height: 30, borderRadius: 7,
         border: '1px solid rgba(124,58,237,0.3)',
         background: hov && enabled ? 'rgba(124,58,237,0.25)' : 'rgba(124,58,237,0.12)',
         color: enabled ? '#c4b5fd' : '#4a3f6b',
@@ -1074,20 +1006,13 @@ function ViewToggleBtn({ active, onClick, children, title }) {
   const [hov, setHov] = useState(false)
   return (
     <button
-      onClick={onClick}
-      title={title}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
+      onClick={onClick} title={title}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{
-        width: 28, height: 26,
-        borderRadius: 6,
-        border: 'none',
-        background: active
-          ? 'rgba(124,58,237,0.35)'
-          : hov ? 'rgba(124,58,237,0.15)' : 'transparent',
+        width: 28, height: 26, borderRadius: 6, border: 'none',
+        background: active ? 'rgba(124,58,237,0.35)' : hov ? 'rgba(124,58,237,0.15)' : 'transparent',
         color: active ? '#e9d5ff' : '#a78bfa',
-        cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
         boxShadow: active ? '0 0 12px rgba(124,58,237,0.5)' : 'none',
         transition: 'all 0.15s ease',
       }}
@@ -1100,21 +1025,16 @@ function SidebarDriveBtn({ label, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{
-        width: '100%', padding: '7px 8px',
-        marginBottom: 4, borderRadius: 7,
+        width: '100%', padding: '7px 8px', marginBottom: 4, borderRadius: 7,
         border: active ? '1px solid rgba(124,58,237,0.4)' : '1px solid transparent',
         cursor: 'pointer',
-        background: active
-          ? 'rgba(124,58,237,0.22)'
-          : hov ? 'rgba(124,58,237,0.1)' : 'transparent',
+        background: active ? 'rgba(124,58,237,0.22)' : hov ? 'rgba(124,58,237,0.1)' : 'transparent',
         color: active ? '#e2d9f3' : '#9ca3af',
         display: 'flex', alignItems: 'center', gap: 7,
         fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-        fontSize: 12,
-        transition: 'all 0.15s ease',
+        fontSize: 12, transition: 'all 0.15s ease',
         boxShadow: active ? '0 0 10px rgba(124,58,237,0.2)' : 'none',
       }}
     >
@@ -1129,20 +1049,14 @@ const QuickAddBtn = ({ label, onClick, small }) => {
   return (
     <button
       onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{
-        padding: small ? '3px 6px' : '4px 8px',
-        borderRadius: 6,
+        padding: small ? '3px 6px' : '4px 8px', borderRadius: 6,
         background: hov ? 'rgba(124,58,237,0.35)' : 'rgba(124,58,237,0.18)',
-        border: '1px solid rgba(124,58,237,0.45)',
-        color: '#c4b5fd',
-        cursor: 'pointer',
-        fontSize: small ? 9 : 10,
+        border: '1px solid rgba(124,58,237,0.45)', color: '#c4b5fd',
+        cursor: 'pointer', fontSize: small ? 9 : 10,
         fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-        letterSpacing: '0.3px',
-        transition: 'all 0.15s ease',
-        whiteSpace: 'nowrap',
+        letterSpacing: '0.3px', transition: 'all 0.15s ease', whiteSpace: 'nowrap',
         transform: hov ? 'scale(1.05)' : 'scale(1)',
         boxShadow: hov ? '0 0 8px rgba(124,58,237,0.4)' : 'none',
       }}
@@ -1152,19 +1066,20 @@ const QuickAddBtn = ({ label, onClick, small }) => {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
+// ENHANCED: slightly darker + stronger contrast for table header
 const th = {
   textAlign: 'left',
   padding: '10px 10px',
   fontSize: 10,
-  color: '#7c5cbf',
+  color: '#9b7dce',            // slightly brighter label
   fontWeight: 700,
   letterSpacing: '0.7px',
   textTransform: 'uppercase',
-  borderBottom: '1px solid rgba(124,58,237,0.18)',
+  borderBottom: '1px solid rgba(124,58,237,0.22)',
   position: 'sticky',
   top: 0,
-  background: 'rgba(10,12,28,0.97)',
-  backdropFilter: 'blur(8px)',
+  background: 'rgba(7,9,22,0.98)',  // darker for contrast
+  backdropFilter: 'blur(10px)',
   zIndex: 1,
 }
 
@@ -1172,20 +1087,6 @@ const td = {
   padding: '9px 10px',
   borderBottom: '1px solid rgba(255,255,255,0.035)',
   verticalAlign: 'middle',
-}
-
-const menuButtonStyle = {
-  width: '100%',
-  padding: '10px 14px',
-  border: 'none',
-  background: 'transparent',
-  color: '#e2d9f3',
-  textAlign: 'left',
-  cursor: 'pointer',
-  fontSize: 13,
-  lineHeight: 1.4,
-  outline: 'none',
-  transition: 'background 0.18s ease',
 }
 
 // ─── Demo Data ────────────────────────────────────────────────────────────────

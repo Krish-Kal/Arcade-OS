@@ -1,6 +1,19 @@
 // Arcade OS - Electron Main Process
 // Manages the BrowserWindow, IPC handlers, and system-level operations
 
+const Store = require('electron-store').default
+
+const folderIconStore = new Store({
+  name: 'folder-icons',
+  schema: {
+    icons: {
+      type: 'object',
+      additionalProperties: { type: 'string', minLength: 1 },
+      default: {},
+    },
+  },
+  defaults: { icons: {} },
+})
 const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron')
 const path = require('path')
 const fs = require('fs')
@@ -32,7 +45,23 @@ function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, '../dist/index.html'))
   }
+ipcMain.handle('fs:readIconAsBase64', async (_, filePath) => {
+  try {
+    const data = fs.readFileSync(filePath)
+    const ext = path.extname(filePath).replace('.', '').toLowerCase()
 
+    const mime =
+      ext === 'ico' ? 'image/x-icon' :
+      ext === 'png' ? 'image/png' :
+      ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' :
+      'application/octet-stream'
+
+    return `data:${mime};base64,${data.toString('base64')}`
+  } catch (err) {
+    console.error(err)
+    return null
+  }
+})
   // Window controls
   ipcMain.handle('window:minimize', () => win.minimize())
   ipcMain.handle('window:maximize', () => {
@@ -189,6 +218,46 @@ startSystemMonitor()
 
 ipcMain.handle('system:info', () => cachedSystem)
 
-app.whenReady().then(createWindow)
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
-app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
+app.whenReady().then(() => {
+  createWindow()
+
+  // ✅ REGISTER IPC HERE
+
+  ipcMain.handle('fs:selectIconFile', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'ico', 'webp'] }],
+    })
+    return result.canceled ? null : result.filePaths[0]
+  })
+
+ipcMain.handle('fs:saveFolderIcon', async (_, folderPath, iconPath) => {
+  const data = fs.readFileSync(iconPath)
+  const ext = path.extname(iconPath).replace('.', '').toLowerCase()
+
+  const mime =
+    ext === 'png' ? 'image/png' :
+    ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' :
+    ext === 'ico' ? 'image/x-icon' :
+    'application/octet-stream'
+
+  const base64 = `data:${mime};base64,${data.toString('base64')}`
+
+  const icons = folderIconStore.get('icons', {})
+  icons[folderPath] = base64
+  folderIconStore.set('icons', icons)
+
+  return true
+})
+
+  ipcMain.handle('fs:getAllFolderIcons', () => {
+    return folderIconStore.get('icons', {})
+  })
+
+  ipcMain.handle('fs:removeFolderIcon', (_, folderPath) => {
+    const icons = folderIconStore.get('icons', {})
+    delete icons[folderPath]
+    folderIconStore.set('icons', icons)
+    return true
+  })
+})
