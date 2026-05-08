@@ -28,8 +28,11 @@ function createWindow() {
     height: 900,
     minWidth: 1000,
     minHeight: 700,
+    show: false,
     frame: false,
     titleBarStyle: 'hidden',
+    fullscreenable: true,
+    autoHideMenuBar: true,
     backgroundColor: '#0a0a0f',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -45,6 +48,11 @@ function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, '../dist/index.html'))
   }
+
+  win.once('ready-to-show', () => {
+    win.show()
+    win.maximize()
+  })
 ipcMain.handle('fs:readIconAsBase64', async (_, filePath) => {
   try {
     const data = fs.readFileSync(filePath)
@@ -68,11 +76,15 @@ ipcMain.handle('fs:readIconAsBase64', async (_, filePath) => {
     if (win.isMaximized()) win.unmaximize()
     else win.maximize()
   })
+  ipcMain.handle('window:toggleFullscreen', () => win.setFullScreen(!win.isFullScreen()))
   ipcMain.handle('window:close', () => win.close())
   ipcMain.handle('window:isMaximized', () => win.isMaximized())
+  ipcMain.handle('window:isFullscreen', () => win.isFullScreen())
 
   win.on('maximize', () => win.webContents.send('window:maximized', true))
   win.on('unmaximize', () => win.webContents.send('window:maximized', false))
+  win.on('enter-full-screen', () => win.webContents.send('window:fullscreen', true))
+  win.on('leave-full-screen', () => win.webContents.send('window:fullscreen', false))
 }
 
 // Persistent data store

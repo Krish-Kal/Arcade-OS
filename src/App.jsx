@@ -68,37 +68,22 @@ export default function App() {
   const PageComponent = PAGES[activePage] || Home
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100vh',
-      background: 'var(--bg-void)',
-      overflow: 'hidden'
-    }}>
+    <div className="app-shell">
+      <div className="cinematic-backdrop" aria-hidden="true">
+        <div className="ambient ambient-a" />
+        <div className="ambient ambient-b" />
+        <div className="ambient ambient-c" />
+        <div className="depth-grid" />
+        <div className="vignette" />
+      </div>
+
       <TitleBar />
 
-      <div style={{
-        display: 'flex',
-        flex: 1,
-        overflow: 'hidden',
-        gap: 0,
-      }}>
+      <div className="workspace-frame">
         <Sidebar />
 
-        <main style={{
-          flex: 1,
-          overflow: 'hidden',
-          position: 'relative',
-          background: 'var(--bg-deep)',
-          display: 'flex',
-          justifyContent: 'center',
-        }}>
-          <div style={{
-            width: '100%',
-            maxWidth: 1500,
-            height: '100%',
-            overflow: 'hidden'
-          }}>
+        <main className="workspace-main">
+          <div key={activePage} className="page-surface">
             <PageComponent />
           </div>
         </main>

@@ -8,9 +8,12 @@ contextBridge.exposeInMainWorld('arcadeOS', {
   window: {
     minimize: () => ipcRenderer.invoke('window:minimize'),
     maximize: () => ipcRenderer.invoke('window:maximize'),
+    toggleFullscreen: () => ipcRenderer.invoke('window:toggleFullscreen'),
     close: () => ipcRenderer.invoke('window:close'),
     isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+    isFullscreen: () => ipcRenderer.invoke('window:isFullscreen'),
     onMaximized: (cb) => ipcRenderer.on('window:maximized', (_, val) => cb(val)),
+    onFullscreen: (cb) => ipcRenderer.on('window:fullscreen', (_, val) => cb(val)),
   },
 
   // Persistent data
