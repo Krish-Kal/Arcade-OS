@@ -5,8 +5,10 @@ import { Maximize2, Minimize2, Minus, Square, X, Zap } from 'lucide-react'
 const isElectron = typeof window !== 'undefined' && window.arcadeOS
 
 export default function TitleBar() {
+
   const [isMaximized, setIsMaximized] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+
 
   useEffect(() => {
     if (!isElectron) return
@@ -69,7 +71,7 @@ export default function TitleBar() {
           marginLeft: 4,
         }} />
       </div>
-
+      
       {/* Drag area center */}
       <div style={{
         flex: 1,

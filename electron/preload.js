@@ -45,5 +45,19 @@ readIconAsBase64: (path) => ipcRenderer.invoke('fs:readIconAsBase64', path),
   system: {
     info: () => ipcRenderer.invoke('system:info'),
   },
+
+  ai: {
+    openInChrome: (url) => ipcRenderer.invoke('ai:openInChrome', url),
+    openInEdge: (url) => ipcRenderer.invoke('ai:openInEdge', url),
+    listenOnce: () => ipcRenderer.invoke('ai:listenOnce'),
+    openApp: (name) => ipcRenderer.invoke('ai:openApp', name),
+    createFolder: (name, location) => ipcRenderer.invoke('ai:createFolder', name, location),
+    createTextFile: (name, location) => ipcRenderer.invoke('ai:createTextFile', name, location),
+    openFolder: (location) => ipcRenderer.invoke('ai:openFolder', location),
+    openFile: (name) => ipcRenderer.invoke('ai:openFile', name),
+    setStartup: (enabled) => ipcRenderer.invoke('ai:setStartup', enabled),
+    getStartup: () => ipcRenderer.invoke('ai:getStartup'),
+    onQuickCommand: (cb) => ipcRenderer.on('ai:quick-command', () => cb()),
+  },
   
 })

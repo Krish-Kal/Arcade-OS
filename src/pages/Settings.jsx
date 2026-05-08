@@ -148,8 +148,7 @@ const styles = {
     display: "flex",
     gap: 20,
   },
-
-  statBox: {
+   statBox: {
     flex: 1,
     padding: 20,
     borderRadius: 14,
@@ -221,6 +220,7 @@ const styles = {
     color: "#fff",
     boxShadow:
       "0 0 20px rgba(239,68,68,0.6), inset 0 0 10px rgba(255,255,255,0.2)",
-    transition: "0.2s",
+          transition: "0.2s",
   },
 };
+

@@ -99,7 +99,7 @@ function useGlobalStyle(css) {
 export default function Home() {
   useGlobalStyle(GLOBAL_CSS)
 
-  const { games, apps, recentLaunches, launchItem, setActivePage } = useStore()
+   const { games, apps, recentLaunches, launchItem, setActivePage } = useStore()
   const [now] = useState(Date.now())
 
   const featured    = [...games].sort((a, b) => b.launchCount - a.launchCount).slice(0, 3)
@@ -111,7 +111,6 @@ export default function Home() {
     now - (i.launchedAt || 0) >= 86400000 &&
     now - (i.launchedAt || 0) < 172800000
   )
-
   return (
     <div className="aos-root" style={{
       height: '100%',
@@ -123,13 +122,12 @@ export default function Home() {
     }}>
       <CommandBar />
 
-      <div
+            <div
         className="aos-scroll"
         style={{
           flex: 1,
           overflowY: 'auto',
-
-          /* 🔥 MORE 1440p BREATHING SPACE */
+                    /* 🔥 MORE 1440p BREATHING SPACE */
           padding: '32px 44px 48px',
         }}
       >
@@ -145,7 +143,7 @@ export default function Home() {
           zIndex: 0,
         }} />
 
-        <div style={{
+                <div style={{
           display: 'grid',
 
           /* 🔥 wider 1440 layout feel */
@@ -158,8 +156,8 @@ export default function Home() {
           maxWidth: 1600,
           margin: '0 auto',   // centers like real OS dashboard
         }}>
-          
-          {/* LEFT */}
+
+                    {/* LEFT */}
           <div style={{
             display: 'flex',
             flexDirection: 'column',
@@ -233,7 +231,7 @@ export default function Home() {
             )}
           </div>
 
-          {/* RIGHT */}
+                    {/* RIGHT */}
           <div style={{
   position: 'sticky',
   top: 0,
@@ -255,7 +253,6 @@ export default function Home() {
     </div>
   )
 }
-
 /* ─── COMMAND BAR ────────────────────────────────────────────── */
 function CommandBar() {
   return (
@@ -322,7 +319,6 @@ function Section({ title, icon, action, onAction, delay = 0, children }) {
     </div>
   )
 }
-
 function SectionLabel({ title, icon }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -340,7 +336,6 @@ function SectionLabel({ title, icon }) {
     </div>
   )
 }
-
 /* ─── HERO CARD ──────────────────────────────────────────────── */
 const CARD_GRADIENTS = [
   'linear-gradient(145deg, rgba(139,92,246,0.22) 0%, rgba(59,130,246,0.1) 100%)',
@@ -408,6 +403,7 @@ function HeroCard({ item, rank, onLaunch, delay }) {
         </div>
       </div>
 
+      
       {/* Info */}
       <div style={{ padding: '11px 13px 13px' }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: T.textPrimary }}>{item.name}</div>
@@ -418,7 +414,6 @@ function HeroCard({ item, rank, onLaunch, delay }) {
     </div>
   )
 }
-
 /* ─── PILL BUTTON ────────────────────────────────────────────── */
 function PillButton({ item, onLaunch }) {
   return (
@@ -444,7 +439,6 @@ function PillButton({ item, onLaunch }) {
     </button>
   )
 }
-
 /* ─── TIMELINE ───────────────────────────────────────────────── */
 function Timeline({ todayItems, yesterItems, now, onLaunch }) {
   return (
@@ -468,7 +462,6 @@ function Timeline({ todayItems, yesterItems, now, onLaunch }) {
     </div>
   )
 }
-
 function GroupLabel({ text }) {
   return (
     <div style={{
@@ -480,7 +473,6 @@ function GroupLabel({ text }) {
     </div>
   )
 }
-
 function TimelineRow({ item, now, onLaunch, isLast, faded }) {
   const ago    = item.launchedAt ? Math.round((now - item.launchedAt) / 60000) : null
   const agoStr = ago === null ? '' : ago < 60 ? `${ago}m ago` : ago < 1440 ? `${Math.round(ago / 60)}h ago` : 'Yesterday'
@@ -519,7 +511,6 @@ function TimelineRow({ item, now, onLaunch, isLast, faded }) {
     </div>
   )
 }
-
 /* ─── GLASS PANEL ────────────────────────────────────────────── */
 function GlassPanel({ delay = 0, children }) {
   return (
@@ -535,4 +526,3 @@ function GlassPanel({ delay = 0, children }) {
     </div>
   )
 }
-

@@ -14,13 +14,40 @@ const folderIconStore = new Store({
   },
   defaults: { icons: {} },
 })
-const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, dialog, Tray, Menu, nativeImage } = require('electron')
+const { execFile } = require('child_process')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const si = require('systeminformation')
 const isDev = process.env.NODE_ENV !== 'production'
 const dataPath = path.join(app.getPath('userData'), 'arcade-os-data.json')
+let mainWindow = null
+let tray = null
+let isQuitting = false
+
+function iconPath() {
+  return path.join(__dirname, '../public/icons/icon.png')
+}
+
+function createTray() {
+  if (tray) return
+
+  const icon = nativeImage.createFromPath(iconPath())
+  tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon.resize({ width: 16, height: 16 }))
+  tray.setToolTip('Arcade OS - ambient command layer')
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Open Arcade OS', click: () => { mainWindow?.show(); mainWindow?.focus() } },
+    { label: 'Quick Command', click: () => { mainWindow?.show(); mainWindow?.focus(); mainWindow?.webContents.send('ai:quick-command') } },
+    { type: 'separator' },
+    { label: 'Quit', click: () => { isQuitting = true; app.quit() } },
+  ]))
+  tray.on('click', () => {
+    if (!mainWindow) return
+    mainWindow.show()
+    mainWindow.focus()
+  })
+}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -39,8 +66,9 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
-    icon: path.join(__dirname, '../public/icons/icon.png'),
+    icon: iconPath(),
   })
+  mainWindow = win
 
   if (isDev) {
     win.loadURL('http://localhost:5173')
@@ -52,6 +80,11 @@ function createWindow() {
   win.once('ready-to-show', () => {
     win.show()
     win.maximize()
+  })
+  win.on('close', (event) => {
+    if (isQuitting) return
+    event.preventDefault()
+    win.hide()
   })
 ipcMain.handle('fs:readIconAsBase64', async (_, filePath) => {
   try {
@@ -103,6 +136,259 @@ function saveData(data) {
 
 ipcMain.handle('data:load', () => loadData())
 ipcMain.handle('data:save', (_, data) => { saveData(data); return true })
+
+function safeName(value) {
+  return String(value || '').replace(/[<>:"/\\|?*\x00-\x1F]/g, '').trim().slice(0, 80)
+}
+
+function knownFolder(location) {
+  const home = os.homedir()
+  const key = String(location || 'documents').toLowerCase()
+  if (key === 'desktop') return path.join(home, 'Desktop')
+  if (key === 'downloads' || key === 'download') return path.join(home, 'Downloads')
+  return path.join(home, 'Documents')
+}
+
+function chromeCandidates() {
+  const candidates = []
+  if (process.platform === 'win32') {
+    candidates.push(
+      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Google\\Chrome\\Application\\chrome.exe'),
+      path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Google\\Chrome\\Application\\chrome.exe'),
+      path.join(process.env.LOCALAPPDATA || '', 'Google\\Chrome\\Application\\chrome.exe')
+    )
+  } else if (process.platform === 'darwin') {
+    candidates.push('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
+  } else {
+    candidates.push('/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium-browser', '/usr/bin/chromium')
+  }
+  return candidates.filter(Boolean)
+}
+
+function edgeCandidates() {
+  const candidates = []
+  if (process.platform === 'win32') {
+    candidates.push(
+      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Microsoft\\Edge\\Application\\msedge.exe'),
+      path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Microsoft\\Edge\\Application\\msedge.exe'),
+      path.join(process.env.LOCALAPPDATA || '', 'Microsoft\\Edge\\Application\\msedge.exe')
+    )
+  } else if (process.platform === 'darwin') {
+    candidates.push('/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge')
+  } else {
+    candidates.push('/usr/bin/microsoft-edge', '/usr/bin/microsoft-edge-stable')
+  }
+  return candidates.filter(Boolean)
+}
+
+function execDetached(filePath, args = []) {
+  return new Promise((resolve) => {
+    const child = execFile(filePath, args, { detached: true, windowsHide: true }, (error) => {
+      if (error) resolve({ success: false, error: error.message })
+    })
+    child.on('spawn', () => {
+      child.unref()
+      resolve({ success: true })
+    })
+  })
+}
+
+function listenWithWindowsSpeech() {
+  return new Promise((resolve) => {
+    if (process.platform !== 'win32') {
+      resolve({ success: false, error: 'Voice recognition fallback is only available on Windows.' })
+      return
+    }
+
+    const script = [
+      'Add-Type -AssemblyName System.Speech',
+      '$recognizer = New-Object System.Speech.Recognition.SpeechRecognitionEngine',
+      '$recognizer.SetInputToDefaultAudioDevice()',
+      '$grammar = New-Object System.Speech.Recognition.DictationGrammar',
+      '$recognizer.LoadGrammar($grammar)',
+      '$result = $recognizer.Recognize([TimeSpan]::FromSeconds(7))',
+      'if ($result -and $result.Text) { Write-Output $result.Text }',
+      '$recognizer.Dispose()',
+    ].join('; ')
+
+    execFile('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], { windowsHide: true, timeout: 10000 }, (error, stdout) => {
+      if (error) {
+        resolve({ success: false, error: error.message })
+        return
+      }
+
+      const transcript = String(stdout || '').trim()
+      resolve(transcript ? { success: true, transcript } : { success: false, error: 'No speech detected.' })
+    })
+  })
+}
+
+async function openInChrome(url) {
+  let target
+  try {
+    target = new URL(url)
+  } catch (err) {
+    return { success: false, error: 'Invalid URL' }
+  }
+  if (!['http:', 'https:'].includes(target.protocol)) return { success: false, error: 'Unsupported URL protocol' }
+
+  const chromePath = chromeCandidates().find(candidate => fs.existsSync(candidate))
+  if (chromePath) return execDetached(chromePath, ['--new-tab', target.toString()])
+
+  await shell.openExternal(target.toString())
+  return { success: true, fallback: true }
+}
+
+async function openInEdge(url) {
+  let target
+  try {
+    target = new URL(url)
+  } catch (err) {
+    return { success: false, error: 'Invalid URL' }
+  }
+  if (!['http:', 'https:'].includes(target.protocol)) return { success: false, error: 'Unsupported URL protocol' }
+
+  const edgePath = edgeCandidates().find(candidate => fs.existsSync(candidate))
+  if (edgePath) return execDetached(edgePath, ['--new-tab', target.toString()])
+
+  if (process.platform === 'win32') {
+    await shell.openExternal(`microsoft-edge:${target.toString()}`)
+    return { success: true, fallback: true }
+  }
+
+  await shell.openExternal(target.toString())
+  return { success: true, fallback: true }
+}
+
+function appCandidates(name) {
+  const key = String(name || '').toLowerCase()
+  const local = process.env.LOCALAPPDATA || ''
+  const programFiles = process.env.ProgramFiles || 'C:\\Program Files'
+  const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)'
+  const aliases = {
+    'vs code': [path.join(local, 'Programs\\Microsoft VS Code\\Code.exe'), path.join(programFiles, 'Microsoft VS Code\\Code.exe')],
+    vscode: [path.join(local, 'Programs\\Microsoft VS Code\\Code.exe'), path.join(programFiles, 'Microsoft VS Code\\Code.exe')],
+    edge: [path.join(programFiles, 'Microsoft\\Edge\\Application\\msedge.exe'), path.join(programFilesX86, 'Microsoft\\Edge\\Application\\msedge.exe')],
+    'microsoft edge': [path.join(programFiles, 'Microsoft\\Edge\\Application\\msedge.exe'), path.join(programFilesX86, 'Microsoft\\Edge\\Application\\msedge.exe')],
+    discord: [path.join(local, 'Discord\\Update.exe')],
+    spotify: [path.join(process.env.APPDATA || '', 'Spotify\\Spotify.exe')],
+    steam: [path.join(programFilesX86, 'Steam\\steam.exe'), path.join(programFiles, 'Steam\\steam.exe')],
+  }
+  return aliases[key] || []
+}
+
+ipcMain.handle('ai:openInChrome', async (_, url) => {
+  try { return await openInChrome(url) }
+  catch (err) { return { success: false, error: err.message } }
+})
+
+ipcMain.handle('ai:openInEdge', async (_, url) => {
+  try { return await openInEdge(url) }
+  catch (err) { return { success: false, error: err.message } }
+})
+
+ipcMain.handle('ai:listenOnce', async () => {
+  try { return await listenWithWindowsSpeech() }
+  catch (err) { return { success: false, error: err.message } }
+})
+
+ipcMain.handle('ai:openApp', async (_, rawName) => {
+  try {
+    const name = safeName(rawName).toLowerCase()
+    if (!name) return { success: false, error: 'Missing app name' }
+
+    if (name === 'spotify') {
+      await shell.openExternal('spotify:')
+      return { success: true }
+    }
+    if (name === 'discord') {
+      await shell.openExternal('discord:')
+      return { success: true }
+    }
+    if (name === 'edge' || name === 'microsoft edge') {
+      await shell.openExternal('microsoft-edge:')
+      return { success: true }
+    }
+
+    const target = appCandidates(name).find(candidate => fs.existsSync(candidate))
+    if (!target) return { success: false, error: `${rawName} was not found` }
+
+    if (name === 'discord' && target.endsWith('Update.exe')) {
+      return execDetached(target, ['--processStart', 'Discord.exe'])
+    }
+    return execDetached(target)
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('ai:createFolder', async (_, rawName, location) => {
+  try {
+    const name = safeName(rawName)
+    if (!name) return { success: false, error: 'Invalid folder name' }
+    const base = knownFolder(location)
+    const target = path.resolve(base, name)
+    if (!target.startsWith(path.resolve(base))) return { success: false, error: 'Invalid folder path' }
+    fs.mkdirSync(target, { recursive: true })
+    return { success: true, path: target }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('ai:createTextFile', async (_, rawName, location) => {
+  try {
+    let name = safeName(rawName)
+    if (!name) return { success: false, error: 'Invalid file name' }
+    if (!name.toLowerCase().endsWith('.txt')) name += '.txt'
+    const base = knownFolder(location)
+    const target = path.resolve(base, name)
+    if (!target.startsWith(path.resolve(base))) return { success: false, error: 'Invalid file path' }
+    if (!fs.existsSync(target)) fs.writeFileSync(target, '', 'utf8')
+    await shell.openPath(target)
+    return { success: true, path: target }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('ai:openFolder', async (_, location) => {
+  try {
+    const target = knownFolder(location)
+    await shell.openPath(target)
+    return { success: true, path: target }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('ai:openFile', async (_, rawName) => {
+  try {
+    const name = safeName(rawName).toLowerCase()
+    if (!name) return { success: false, error: 'Invalid file name' }
+    const roots = [knownFolder('desktop'), knownFolder('documents'), knownFolder('downloads')]
+    for (const root of roots) {
+      if (!fs.existsSync(root)) continue
+      const files = fs.readdirSync(root)
+      const found = files.find(file => file.toLowerCase().includes(name))
+      if (found) {
+        const target = path.join(root, found)
+        await shell.openPath(target)
+        return { success: true, path: target }
+      }
+    }
+    return { success: false, error: `${rawName} was not found` }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('ai:setStartup', (_, enabled) => {
+  app.setLoginItemSettings({ openAtLogin: Boolean(enabled), openAsHidden: true })
+  return app.getLoginItemSettings()
+})
+
+ipcMain.handle('ai:getStartup', () => app.getLoginItemSettings())
 
 // File system operations
 ipcMain.handle('fs:selectExecutable', async () => {
@@ -232,6 +518,7 @@ ipcMain.handle('system:info', () => cachedSystem)
 
 app.whenReady().then(() => {
   createWindow()
+  createTray()
 
   // ✅ REGISTER IPC HERE
 
@@ -273,3 +560,9 @@ ipcMain.handle('fs:saveFolderIcon', async (_, folderPath, iconPath) => {
     return true
   })
 })
+
+app.on('before-quit', () => {
+  isQuitting = true
+})
+
+app.on('window-all-closed', () => {})

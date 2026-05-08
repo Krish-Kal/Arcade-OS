@@ -21,7 +21,7 @@ export default function GlobalSearchBar() {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      searchAll(searchQuery)
+     searchAll(searchQuery)
     }, 180)
 
     return () => clearTimeout(t)

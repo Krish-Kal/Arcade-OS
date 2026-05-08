@@ -87,6 +87,30 @@ const createSettingsSlice = (set) => ({
     })),
 })
 
+// ---------------- AI COMMAND SLICE ----------------
+const createAICommandSlice = (set) => ({
+  aiCommandState: {
+    listening: false,
+    processing: false,
+    response: 'Ready.',
+    lastCommand: '',
+  },
+  commandHistory: [],
+
+  setAICommandState: (patch) =>
+    set(s => ({
+      aiCommandState: { ...s.aiCommandState, ...patch }
+    })),
+
+  rememberCommand: (text, result) =>
+    set(s => ({
+      commandHistory: [
+        { id: Date.now(), text, result, at: Date.now() },
+        ...s.commandHistory
+      ].slice(0, 20)
+    })),
+})
+
 // ---------------- LIBRARY SLICE ----------------
 const createLibrarySlice = (set, get) => ({
   games: DEMO_GAMES,
@@ -208,6 +232,7 @@ export const useStore = create(
       ...createNotificationSlice(set),
       ...createChatSlice(set),
       ...createSettingsSlice(set),
+      ...createAICommandSlice(set),
       ...createLibrarySlice(set, get),
       ...createSystemSlice(set),
     }),
@@ -221,7 +246,9 @@ export const useStore = create(
         apps: state.apps,
         recentLaunches: state.recentLaunches,
         settings: state.settings,
-        chatMessages: state.chatMessages
+        chatMessages: state.chatMessages,
+        aiCommandState: state.aiCommandState,
+        commandHistory: state.commandHistory
         // notifications excluded intentionally
       }),
 

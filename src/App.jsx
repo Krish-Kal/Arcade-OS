@@ -3,6 +3,7 @@ import { useStore } from './store/useStore'
 import TitleBar from './components/TitleBar'
 import Sidebar from './components/Sidebar'
 import NotificationStack from './components/NotificationStack'
+import AmbientCommandLayer from './components/AmbientCommandLayer'
 import Home from './pages/Home'
 import Games from './pages/Games'
 import Apps from './pages/Apps'
@@ -64,9 +65,8 @@ function FPSCounter() {
 }
 
 export default function App() {
-  const { activePage } = useStore()
+ const { activePage } = useStore()
   const PageComponent = PAGES[activePage] || Home
-
   return (
     <div className="app-shell">
       <div className="cinematic-backdrop" aria-hidden="true">
@@ -89,6 +89,7 @@ export default function App() {
         </main>
       </div>
 
+      <AmbientCommandLayer />
       <NotificationStack />
 
       {/* If you ever want FPS back, just uncomment */}
