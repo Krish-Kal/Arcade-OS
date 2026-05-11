@@ -63,7 +63,6 @@ function getThumbnail(entry, iconCache = {}) {
   return null
 }
 
-// ── ENHANCED: richer per-state folder styling ─────────────────────────────────
 function getFolderStyle(entry, hovered, active, recentPaths = []) {
   const safeEntry = entry || {}
   const isDir = Boolean(safeEntry.isDirectory)
@@ -82,17 +81,18 @@ function getFolderStyle(entry, hovered, active, recentPaths = []) {
       ? (isEmpty ? '#8fa3b8' : isGameFolder ? '#cb96fd' : '#b4a0fb')
       : baseColor
 
-  const glowIntensity = active ? 16 : hovered ? 12 : 6
-  const glowOpacity = active ? 0.85 : hovered ? 0.72 : 0.38
+  // OPTIMIZED: lighter glow for 60fps performance - reduced blur and opacity
+  const glowIntensity = active ? 10 : hovered ? 8 : 4
+  const glowOpacity = active ? 0.45 : hovered ? 0.35 : 0.2
   const primaryGlow = isGameFolder
     ? `drop-shadow(0 0 ${glowIntensity}px rgba(124,58,237,${glowOpacity}))`
-    : `drop-shadow(0 0 ${glowIntensity * 0.7}px rgba(124,58,237,${glowOpacity * 0.55}))`
+    : `drop-shadow(0 0 ${glowIntensity * 0.6}px rgba(124,58,237,${glowOpacity * 0.5}))`
 
-  const recentGlow = isRecent ? 'drop-shadow(0 0 10px rgba(124,58,237,0.18))' : ''
-  const scale = active ? 1.08 : hovered ? 1.05 : 1
-  const animation = isGameFolder ? 'folderPulse 4s ease-in-out infinite' : undefined
+  const recentGlow = isRecent ? '' : ''
+  const scale = active ? 1.06 : hovered ? 1.03 : 1
+  const animation = isGameFolder ? 'folderPulse 6s ease-in-out infinite' : undefined
 
-  return { color, glow: [primaryGlow, recentGlow].filter(Boolean).join(' '), scale, animation }
+  return { color, glow: primaryGlow, scale, animation }
 }
 
 function getEntryPreview(entry) {
@@ -127,7 +127,7 @@ function getFileIcon(ext) {
 }
 
 // ─── ENHANCED Grid Card ───────────────────────────────────────────────────────
-function GridCard({
+const GridCard = React.memo(function GridCard({
   entry, isSelected, onClick, onDoubleClick,
   addAsGame, addAsApp, isExecFn, isGamePathFn, recentPaths = [],
   onContextMenu, renamingPath, renameValue, onRenameChange,
@@ -170,32 +170,33 @@ function GridCard({
         : '1px solid rgba(124,58,237,0.22)',
     backdropFilter: 'blur(12px)',
     cursor: 'pointer',
-    transition: 'all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1)',
+    transition: 'background 0.15s ease, border 0.15s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease',
     transform: pressed
       ? 'translateY(-1px) scale(0.97)'
       : hovered
         ? 'translateY(-4px) scale(1.03)'
         : 'translateY(0) scale(1)',
     boxShadow: isSelected
-      ? '0 8px 28px rgba(124,58,237,0.45), inset 0 1px 0 rgba(255,255,255,0.05)'
+      ? '0 6px 20px rgba(124,58,237,0.3), inset 0 1px 0 rgba(255,255,255,0.05)'
       : hovered
-        ? '0 10px 30px rgba(124,58,237,0.35), inset 0 1px 0 rgba(255,255,255,0.04)'
-        : '0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)',
+        ? '0 8px 24px rgba(124,58,237,0.25), inset 0 1px 0 rgba(255,255,255,0.04)'
+        : '0 2px 6px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     gap: 8,
-    animation: 'cardFadeIn 0.25s ease forwards',
+    animation: 'cardFadeIn 0.15s ease-out forwards',
     userSelect: 'none',
   }
 
   const isRenaming = entryPath === renamingPath
 
-  // ENHANCED: icon with fade+scale transition for custom icon changes
+  // OPTIMIZED: reduced blur, lighter shadows for 60fps scrolling
   const iconTransitionStyle = {
-    transition: 'opacity 0.2s ease, transform 0.2s ease',
-    opacity: isIconTransitioning ? 0.4 : 1,
+    transition: 'opacity 0.15s ease, transform 0.15s ease',
+    opacity: isIconTransitioning ? 0.5 : 1,
     transform: isIconTransitioning ? 'scale(0.88)' : 'scale(1)',
+    willChange: isIconTransitioning ? 'opacity, transform' : 'auto',
   }
 
   return (
@@ -218,14 +219,14 @@ function GridCard({
         }}>GAME</span>
       )}
 
-      {/* Icon area */}
+      {/* Icon area - OPTIMIZED: reduced filter complexity */}
       <div style={{
-        filter: entryIsDirectory && !customIconSrc
-          ? `${folderStyle.glow}${hovered ? ' brightness(1.06)' : ''}`
-          : hovered ? 'drop-shadow(0 0 8px rgba(124,58,237,0.8))' : 'drop-shadow(0 0 3px rgba(124,58,237,0.2))',
+        filter: entryIsDirectory && !customIconSrc ? folderStyle.glow : undefined,
         transform: entryIsDirectory && !customIconSrc ? `scale(${folderStyle.scale})` : undefined,
         animation: entryIsDirectory && !customIconSrc ? folderStyle.animation : undefined,
-        transition: 'all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
+        transition: 'filter 0.15s ease, transform 0.15s ease',
+        willChange: entryIsDirectory && !customIconSrc ? 'filter, transform' : 'auto',
+        contain: entryIsDirectory && !customIconSrc ? 'layout style paint' : undefined,
         marginTop: 4,
         ...iconTransitionStyle,
       }}>
@@ -297,7 +298,7 @@ function GridCard({
       )}
     </div>
   )
-}
+});
 
 // ─── Grid View ────────────────────────────────────────────────────────────────
 function GridView({
@@ -320,18 +321,20 @@ function GridView({
       display: 'grid',
       gridTemplateColumns: 'repeat(auto-fill, minmax(145px, 1fr))',
       gap: 14, padding: 16, overflowY: 'auto', flex: 1, alignContent: 'start',
+      willChange: 'scroll-position',
+      contain: 'layout style paint',
     }}>
       <style>{`
         @keyframes cardFadeIn {
-          from { opacity: 0; transform: translateY(12px) scale(0.98); }
+          from { opacity: 0; transform: translateY(8px) scale(0.97); }
           to   { opacity: 1; transform: translateY(0) scale(1); }
         }
       `}</style>
-      {list.map((entry, i) => {
+      {list.map((entry) => {
         const entryPath = safePath(entry?.path)
         const customIconSrc = entry?.isDirectory ? getCustomIcon(entryPath) : null
         return (
-          <div key={i} style={{ animationDelay: `${i * 18}ms` }}>
+          <div key={entryPath || 'unknown'}>
             <GridCard
               entry={entry}
               isSelected={selected === entryPath}
@@ -435,32 +438,35 @@ export default function FileExplorer() {
     })
   }, [navigateTo])
 
-  const goUp = () => {
+  const goUp = useCallback(() => {
     const parts = currentPath.replace(/\\/g, '/').split('/').filter(Boolean)
     if (parts.length <= 1) return
     parts.pop()
     const parent = (currentPath.startsWith('/') ? '/' : '') + parts.join('/')
     navigateTo(parent)
-  }
+  }, [currentPath, navigateTo])
 
-  const openFile = async (entry) => {
+  const openFile = useCallback(async (entry) => {
     if (!entry || typeof entry !== 'object') return
     if (entry.isDirectory) return
     const path = safePath(entry.path)
     if (!isElectron) return console.log('[Demo] Open:', path)
     await window.arcadeOS.launch.open(path)
-  }
+  }, [])
 
-  const handleEntry = (entry) => {
+  const handleEntry = useCallback((entry) => {
     if (!entry || typeof entry !== 'object') return
     const path = safePath(entry.path)
     if (entry.isDirectory) navigateTo(path)
     else setSelected(path === selected ? null : path)
-  }
+  }, [navigateTo, selected])
 
-  const closeContextMenu = () => setContextMenu({ visible: false, x: 0, y: 0, entry: null })
+  const closeContextMenu = useCallback(
+    () => setContextMenu({ visible: false, x: 0, y: 0, entry: null }),
+    [],
+  )
 
-  const handleContextMenu = (entry, event) => {
+  const handleContextMenu = useCallback((entry, event) => {
     if (!entry || typeof entry !== 'object') return
     event.preventDefault()
     const menuWidth = 200
@@ -469,9 +475,9 @@ export default function FileExplorer() {
     let y = Math.min(event.clientY, window.innerHeight - menuHeight - 8)
     setSelected(safePath(entry.path))
     setContextMenu({ visible: true, x, y, entry })
-  }
+  }, [])
 
-  const startRename = (entry) => {
+  const startRename = useCallback((entry) => {
     if (!entry || typeof entry !== 'object') return
     const name = safeName(entry.name)
     const ext = entry.isDirectory ? '' : safeExt(entry.ext)
@@ -479,9 +485,9 @@ export default function FileExplorer() {
     setRenamingPath(safePath(entry.path))
     setRenameValue(rawName)
     closeContextMenu()
-  }
+  }, [closeContextMenu])
 
-  const confirmRename = () => {
+  const confirmRename = useCallback(() => {
     if (!renamingPath) return
     setEntries(prev => prev.map(item => {
       if (safePath(item?.path) !== renamingPath) return item
@@ -493,49 +499,79 @@ export default function FileExplorer() {
     }))
     setRenamingPath(null)
     setRenameValue('')
-  }
+  }, [renamingPath, renameValue])
 
-  const cancelRename = () => {
+  const cancelRename = useCallback(() => {
     setRenamingPath(null)
     setRenameValue('')
     closeContextMenu()
-  }
+  }, [closeContextMenu])
 
-  const addAsGame = (entry) => addGame({ name: safeName(entry?.name).replace(/\.[^.]+$/, ''), path: safePath(entry?.path), genre: 'Other' })
-  const addAsApp = (entry) => addApp({ name: safeName(entry?.name).replace(/\.[^.]+$/, ''), path: safePath(entry?.path), category: 'Other' })
+  const addAsGame = useCallback(
+    (entry) =>
+      addGame({
+        name: safeName(entry?.name).replace(/\.[^.]+$/, ''),
+        path: safePath(entry?.path),
+        genre: 'Other',
+      }),
+    [addGame],
+  )
+  const addAsApp = useCallback(
+    (entry) =>
+      addApp({
+        name: safeName(entry?.name).replace(/\.[^.]+$/, ''),
+        path: safePath(entry?.path),
+        category: 'Other',
+      }),
+    [addApp],
+  )
 
-  const loadIcon = useCallback(async (entry) => {
-    const entryPath = safePath(entry?.path)
-    if (!isElectron || entry?.isDirectory || !entryPath) return null
-    if (iconCache?.[entryPath]) return iconCache[entryPath]
-    try {
-      const icon = await window.arcadeOS.fs.getFileIcon(entryPath)
-      if (icon) {
-        setIconCache(prev => prev?.[entryPath] ? prev : ({ ...prev, [entryPath]: icon }))
-        return icon
-      }
-    } catch {}
-    return null
-  }, [iconCache])
+  const loadIcon = useCallback(
+    async (entry) => {
+      const entryPath = safePath(entry?.path)
+      if (!isElectron || entry?.isDirectory || !entryPath) return null
+      if (iconCache?.[entryPath]) return iconCache[entryPath]
+      try {
+        const icon = await window.arcadeOS.fs.getFileIcon(entryPath)
+        if (icon) {
+          setIconCache(prev =>
+            prev?.[entryPath] ? prev : ({ ...prev, [entryPath]: icon }),
+          )
+          return icon
+        }
+      } catch {}
+      return null
+    },
+    [iconCache],
+  )
 
-  const isExec = (entry) => EXEC_EXTS.includes(safeExt(entry?.ext))
-  const isGamePath = (entry) => GAME_KEYWORDS.some(k => safePath(entry?.path).toLowerCase().includes(k))
+  const isExec = useCallback(
+    (entry) => EXEC_EXTS.includes(safeExt(entry?.ext)),
+    [],
+  )
+  const isGamePath = useCallback(
+    (entry) => GAME_KEYWORDS.some(k => safePath(entry?.path).toLowerCase().includes(k)),
+    [],
+  )
   const breadcrumbs = safePath(currentPath).split('/').filter(Boolean)
   const recentPaths = history.slice(-3)
   const safeEntryList = useMemo(() =>
     Array.isArray(entries) ? entries.filter(e => e && typeof e === 'object') : [],
     [entries]
   )
-  const selectedEntry = safeEntryList.find(entry => safePath(entry?.path) === selected)
+  const selectedEntry = useMemo(
+    () => safeEntryList.find(entry => safePath(entry?.path) === selected),
+    [safeEntryList, selected],
+  )
 
-  const moveSelection = (delta) => {
+  const moveSelection = useCallback((delta) => {
     if (!safeEntryList.length) return
     const idx = safeEntryList.findIndex(e => safePath(e?.path) === selected)
     if (idx === -1) { setSelected(safePath(safeEntryList[0]?.path)); return }
     const next = idx + delta
     if (next < 0 || next >= safeEntryList.length) return
     setSelected(safePath(safeEntryList[next]?.path))
-  }
+  }, [safeEntryList, selected])
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -572,9 +608,12 @@ export default function FileExplorer() {
       window.removeEventListener('mousedown', handleMouseDown)
       window.removeEventListener('scroll', handleScroll, true)
     }
-  }, [contextMenu.visible, selectedEntry, viewMode, renamingPath, entries, navigateTo, openFile])
+  }, [contextMenu.visible, selectedEntry, viewMode, renamingPath, closeContextMenu, cancelRename, navigateTo, openFile, startRename, moveSelection])
 
-  const preview = selectedEntry && !selectedEntry.isDirectory ? getEntryPreview(selectedEntry) : null
+  const preview = useMemo(
+    () => (selectedEntry && !selectedEntry.isDirectory ? getEntryPreview(selectedEntry) : null),
+    [selectedEntry],
+  )
 
   return (
     <div style={{
@@ -584,12 +623,21 @@ export default function FileExplorer() {
       flexDirection: 'column',
       overflow: 'visible',
       background: `
-        radial-gradient(circle at 20% 0%, rgba(109,40,217,0.25), transparent 55%),
-        radial-gradient(circle at 80% 100%, rgba(59,130,246,0.15), transparent 60%),
-        linear-gradient(180deg, #0b1220, #111827)
-      `,
+  radial-gradient(circle at 20% 0%, rgba(109,40,217,0.12), transparent 55%),
+  radial-gradient(circle at 80% 100%, rgba(59,130,246,0.08), transparent 60%),
+  linear-gradient(
+    180deg,
+    rgba(11,18,32,0.32),
+    rgba(17,24,39,0.22)
+  )
+`,
+backdropFilter: 'blur(12px)',
+WebkitBackdropFilter: 'blur(12px)',
       fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
       letterSpacing: '0.2px',
+      willChange: 'initial',
+      transform: 'translateZ(0)',
+      backfaceVisibility: 'hidden',
     }}>
       <style>{`
         ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -597,11 +645,11 @@ export default function FileExplorer() {
         ::-webkit-scrollbar-thumb { background: rgba(124,58,237,0.4); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(124,58,237,0.65); }
         @keyframes folderPulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.04); }
+          0%, 100% { filter: drop-shadow(0 0 4px rgba(124,58,237,0.2)); }
+          50% { filter: drop-shadow(0 0 6px rgba(124,58,237,0.3)); }
         }
         @keyframes menuFadeIn {
-          from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+          from { opacity: 0; transform: translateY(-4px) scale(0.98); }
           to   { opacity: 1; transform: translateY(0) scale(1); }
         }
         .ctx-btn:hover { background: rgba(124,58,237,0.18) !important; }
@@ -609,13 +657,15 @@ export default function FileExplorer() {
         .ctx-divider { height: 1px; background: rgba(124,58,237,0.14); margin: 4px 8px; }
       `}</style>
 
-      {/* ── Toolbar ── */}
+      {/* ── Toolbar – OPTIMIZED ── */}
       <div style={{
         padding: '10px 16px',
         borderBottom: '1px solid rgba(124,58,237,0.22)',
-        background: 'rgba(11,18,32,0.72)',
-        backdropFilter: 'blur(12px)',
+        background: 'rgba(11,18,32,0.32)',
+        backdropFilter: 'blur(8px)',
         display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
+        contain: 'layout style',
+        willChange: 'initial',
       }}>
         <NavIconBtn onClick={goBack} enabled={history.length > 1 && !loading} title="Back">
           <ChevronLeft size={14} />
@@ -676,7 +726,7 @@ export default function FileExplorer() {
         <div style={{
           width: 155, borderRight: '1px solid rgba(124,58,237,0.13)',
           padding: '10px 8px', overflowY: 'auto', flexShrink: 0,
-          background: 'rgba(11,18,32,0.35)',
+          background: 'rgba(11,18,32,0.18)',
         }}>
           <div style={{
             fontSize: 9, color: '#6d4fa0', fontWeight: 700,
@@ -702,7 +752,7 @@ export default function FileExplorer() {
 
         {/* ── TABLE VIEW ── */}
         {!loading && !error && viewMode === 'table' && (
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ flex: 1, overflowY: 'auto', contain: 'strict' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '45%' }} />
@@ -735,27 +785,30 @@ export default function FileExplorer() {
                   const transitioning = isTransitioning(entryPath)
 
                   return (
-                    <tr key={i}
+                    <tr key={entryPath || i}
                       onClick={() => handleEntry(entry)}
                       onDoubleClick={() => openFile(entry)}
                       onContextMenu={e => handleContextMenu(entry, e)}
-                      style={{
-                        background: isSelected ? 'rgba(139,92,246,0.18)' : 'transparent',
-                        cursor: 'pointer',
-                        transition: 'background 0.15s ease',
-                      }}
-                      onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(59,130,246,0.06)' }}
-                      onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
+                      onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(59,130,246,0.05)' }}
+                  onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
+                  style={{
+                    background: isSelected ? 'rgba(139,92,246,0.18)' : 'transparent',
+                    cursor: 'pointer',
+                    transition: 'background 0.12s ease',
+                    willChange: 'background',
+                  }}
                     >
                       <td style={td}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 7, overflow: 'hidden' }}>
-                          {/* ENHANCED: icon with transition + custom override */}
+                          {/* ENHANCED: icon with transition + custom override – OPTIMIZED */}
                           <span style={{
                             flexShrink: 0, display: 'flex', alignItems: 'center',
                             filter: isDirectory && !customIconSrc ? folderStyle.glow : undefined,
-                            transition: 'all 0.2s ease',
+                            transition: 'filter 0.15s ease, opacity 0.15s ease, transform 0.15s ease',
                             opacity: transitioning ? 0.5 : 1,
                             transform: transitioning ? 'scale(0.85)' : 'scale(1)',
+                            willChange: transitioning ? 'opacity, transform' : 'auto',
+                            contain: isDirectory && !customIconSrc ? 'layout style paint' : undefined,
                           }}>
                             {isDirectory && customIconSrc ? (
                               <img src={customIconSrc} alt={entryName}
@@ -849,8 +902,10 @@ export default function FileExplorer() {
           position: 'absolute', right: 18, bottom: 18, width: 240,
           maxWidth: 'calc(100% - 32px)', padding: '12px 14px', borderRadius: 16,
           border: '1px solid rgba(124,58,237,0.22)', background: 'rgba(11,18,32,0.88)',
-          backdropFilter: 'blur(18px)', boxShadow: '0 20px 48px rgba(0,0,0,0.45)',
+          backdropFilter: 'blur(12px)', boxShadow: '0 12px 32px rgba(0,0,0,0.35)',
           color: '#e2d9f3', zIndex: 12,
+          willChange: 'transform',
+          contain: 'layout style paint',
         }}>
           <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: '#c4b5fd' }}>Preview</div>
           {preview.isImage && (
@@ -884,11 +939,12 @@ export default function FileExplorer() {
             background: 'rgba(9,14,28,0.94)',
             border: '1px solid rgba(124,58,237,0.25)',
             borderRadius: 14,
-            backdropFilter: 'blur(24px)',
-            boxShadow: '0 32px 64px rgba(0,0,0,0.55), 0 0 0 1px rgba(124,58,237,0.08)',
+            backdropFilter: 'blur(12px)',
+            boxShadow: '0 16px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(124,58,237,0.08)',
             zIndex: 9999,
             overflow: 'hidden',
-            animation: 'menuFadeIn 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+            transition: 'transform 0.12s ease, opacity 0.12s ease',
+          willChange: 'transform, opacity',
             padding: '4px 0',
           }}
         >
@@ -951,7 +1007,7 @@ export default function FileExplorer() {
 }
 
 // ─── Context Menu Item ────────────────────────────────────────────────────────
-function ContextMenuItem({ onClick, children, icon, danger }) {
+const ContextMenuItem = React.memo(function ContextMenuItem({ onClick, children, icon, danger }) {
   const [hov, setHov] = useState(false)
   return (
     <button
@@ -976,11 +1032,11 @@ function ContextMenuItem({ onClick, children, icon, danger }) {
       {children}
     </button>
   )
-}
+});
 
 // ─── Shared Sub-components ────────────────────────────────────────────────────
 
-function NavIconBtn({ onClick, enabled, children, title }) {
+const NavIconBtn = React.memo(function NavIconBtn({ onClick, enabled, children, title }) {
   const [hov, setHov] = useState(false)
   return (
     <button
@@ -996,13 +1052,13 @@ function NavIconBtn({ onClick, enabled, children, title }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         flexShrink: 0,
         boxShadow: hov && enabled ? '0 0 12px rgba(124,58,237,0.45)' : 'none',
-        transition: 'all 0.15s ease',
+        transition: 'background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease',
       }}
     >{children}</button>
   )
-}
+});
 
-function ViewToggleBtn({ active, onClick, children, title }) {
+const ViewToggleBtn = React.memo(function ViewToggleBtn({ active, onClick, children, title }) {
   const [hov, setHov] = useState(false)
   return (
     <button
@@ -1014,13 +1070,13 @@ function ViewToggleBtn({ active, onClick, children, title }) {
         color: active ? '#e9d5ff' : '#a78bfa',
         cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
         boxShadow: active ? '0 0 12px rgba(124,58,237,0.5)' : 'none',
-        transition: 'all 0.15s ease',
+        transition: 'background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease',
       }}
     >{children}</button>
   )
-}
+});
 
-function SidebarDriveBtn({ label, active, onClick }) {
+const SidebarDriveBtn = React.memo(function SidebarDriveBtn({ label, active, onClick }) {
   const [hov, setHov] = useState(false)
   return (
     <button
@@ -1034,7 +1090,8 @@ function SidebarDriveBtn({ label, active, onClick }) {
         color: active ? '#e2d9f3' : '#9ca3af',
         display: 'flex', alignItems: 'center', gap: 7,
         fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-        fontSize: 12, transition: 'all 0.15s ease',
+        fontSize: 12,
+        transition: 'background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease',
         boxShadow: active ? '0 0 10px rgba(124,58,237,0.2)' : 'none',
       }}
     >
@@ -1042,9 +1099,9 @@ function SidebarDriveBtn({ label, active, onClick }) {
       {label}
     </button>
   )
-}
+});
 
-const QuickAddBtn = ({ label, onClick, small }) => {
+const QuickAddBtn = React.memo(({ label, onClick, small }) => {
   const [hov, setHov] = useState(false)
   return (
     <button
@@ -1056,13 +1113,15 @@ const QuickAddBtn = ({ label, onClick, small }) => {
         border: '1px solid rgba(124,58,237,0.45)', color: '#c4b5fd',
         cursor: 'pointer', fontSize: small ? 9 : 10,
         fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-        letterSpacing: '0.3px', transition: 'all 0.15s ease', whiteSpace: 'nowrap',
+        letterSpacing: '0.3px',
+        transition: 'background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, color 0.15s ease, border-color 0.15s ease',
+        whiteSpace: 'nowrap',
         transform: hov ? 'scale(1.05)' : 'scale(1)',
         boxShadow: hov ? '0 0 8px rgba(124,58,237,0.4)' : 'none',
       }}
     >{label}</button>
   )
-}
+});
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -1078,7 +1137,7 @@ const th = {
   borderBottom: '1px solid rgba(124,58,237,0.22)',
   position: 'sticky',
   top: 0,
-  background: 'rgba(7,9,22,0.98)',  // darker for contrast
+  background: 'rgba(7,9,22,0.45)',  // darker for contrast
   backdropFilter: 'blur(10px)',
   zIndex: 1,
 }

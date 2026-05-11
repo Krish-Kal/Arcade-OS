@@ -34,12 +34,21 @@ export default function ControlPanel() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.container}>
+      {/* ambient glow */}
+      <div style={styles.ambientA} />
+      <div style={styles.ambientB} />
 
+      <div style={styles.container}>
         {/* HEADER */}
         <div style={styles.header}>
-          <Database size={20} />
-          <h1 style={styles.title}>CONTROL PANEL</h1>
+          <div style={styles.headerIcon}>
+            <Database size={18} />
+          </div>
+
+          <div>
+            <div style={styles.eyebrow}>SYSTEM MANAGEMENT</div>
+            <h1 style={styles.title}>CONTROL PANEL</h1>
+          </div>
         </div>
 
         {/* STATS */}
@@ -71,7 +80,7 @@ export default function ControlPanel() {
               <div
                 style={{
                   ...styles.progressRing,
-                  background: `conic-gradient(#ef4444 ${progress}%, transparent ${progress}%)`
+                  background: `conic-gradient(rgba(239,68,68,0.95) ${progress}%, transparent ${progress}%)`,
                 }}
               />
 
@@ -81,7 +90,6 @@ export default function ControlPanel() {
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );
@@ -92,6 +100,8 @@ export default function ControlPanel() {
 function Stat({ label, value }) {
   return (
     <div style={styles.statBox}>
+      <div style={styles.statGlow} />
+
       <div style={styles.statValue}>{value}</div>
       <div style={styles.statLabel}>{label}</div>
     </div>
@@ -102,125 +112,277 @@ function Stat({ label, value }) {
 
 const styles = {
   page: {
+    position: "relative",
     height: "100%",
-    background:
-      "radial-gradient(circle at top, #020617, #000000 80%)",
+    overflow: "hidden",
+
+    /* REMOVED solid opaque background */
+    background: "transparent",
+
     color: "#e5e7eb",
+    backdropFilter: "blur(20px) saturate(140%)",
+    WebkitBackdropFilter: "blur(20px) saturate(140%)",
+  },
+
+  /* ambient glows */
+  ambientA: {
+    position: "absolute",
+    top: -120,
+    left: -120,
+    width: 340,
+    height: 340,
+    borderRadius: "50%",
+    background: "rgba(91,140,255,0.14)",
+    filter: "blur(90px)",
+    pointerEvents: "none",
+  },
+
+  ambientB: {
+    position: "absolute",
+    right: -100,
+    bottom: -100,
+    width: 300,
+    height: 300,
+    borderRadius: "50%",
+    background: "rgba(139,92,246,0.12)",
+    filter: "blur(90px)",
+    pointerEvents: "none",
   },
 
   container: {
-    maxWidth: 720,
+    position: "relative",
+    zIndex: 2,
+    maxWidth: 760,
     margin: "auto",
-    padding: "50px 24px",
+    padding: "56px 26px",
   },
 
   header: {
     display: "flex",
     alignItems: "center",
-    gap: 12,
-    marginBottom: 50,
+    gap: 14,
+    marginBottom: 46,
+  },
+
+  headerIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+
+    background: `
+      linear-gradient(
+        145deg,
+        rgba(255,255,255,0.08),
+        rgba(255,255,255,0.02)
+      ),
+      rgba(7,9,22,0.32)
+    `,
+
+    border: "1px solid rgba(255,255,255,0.08)",
+
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+
+    backdropFilter: "blur(18px)",
+    WebkitBackdropFilter: "blur(18px)",
+
+    boxShadow:
+      "0 10px 40px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06)",
+  },
+
+  eyebrow: {
+    fontSize: 10,
+    letterSpacing: "0.22em",
+    color: "#7c86b2",
+    marginBottom: 4,
   },
 
   title: {
-    fontSize: 22,
-    letterSpacing: "0.2em",
-    fontWeight: "600",
+    fontSize: 24,
+    letterSpacing: "0.18em",
+    fontWeight: "700",
+    color: "#f3f6ff",
   },
 
   card: {
+    position: "relative",
+    overflow: "hidden",
+
     marginBottom: 30,
-    padding: 24,
-    borderRadius: 18,
-    background: "rgba(255,255,255,0.03)",
+    padding: 26,
+    borderRadius: 24,
+
+    background: `
+      linear-gradient(
+        145deg,
+        rgba(255,255,255,0.06) 0%,
+        rgba(255,255,255,0.015) 100%
+      ),
+      rgba(7,9,22,0.28)
+    `,
+
     border: "1px solid rgba(255,255,255,0.08)",
-    backdropFilter: "blur(14px)",
-    boxShadow: "0 0 40px rgba(0,0,0,0.6)",
+
+    backdropFilter: "blur(28px) saturate(160%)",
+    WebkitBackdropFilter: "blur(28px) saturate(160%)",
+
+    boxShadow:
+      "0 18px 60px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06)",
   },
 
   sectionTitle: {
     fontSize: 11,
     letterSpacing: "0.18em",
-    color: "#64748b",
-    marginBottom: 20,
+    color: "#7b85ad",
+    marginBottom: 22,
   },
 
   stats: {
     display: "flex",
     gap: 20,
   },
-   statBox: {
+
+  statBox: {
+    position: "relative",
+    overflow: "hidden",
+
     flex: 1,
-    padding: 20,
-    borderRadius: 14,
+    padding: 22,
+    borderRadius: 18,
     textAlign: "center",
-    background: "rgba(255,255,255,0.02)",
-    border: "1px solid rgba(255,255,255,0.05)",
-    boxShadow: "inset 0 0 20px rgba(255,255,255,0.03)",
+
+    background: `
+      linear-gradient(
+        145deg,
+        rgba(255,255,255,0.05),
+        rgba(255,255,255,0.01)
+      ),
+      rgba(11,16,34,0.24)
+    `,
+
+    border: "1px solid rgba(255,255,255,0.06)",
+
+    backdropFilter: "blur(22px)",
+    WebkitBackdropFilter: "blur(22px)",
+
+    boxShadow:
+      "inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 30px rgba(0,0,0,0.18)",
+  },
+
+  statGlow: {
+    position: "absolute",
+    inset: 0,
+    background:
+      "radial-gradient(circle at top, rgba(91,140,255,0.12), transparent 70%)",
+    pointerEvents: "none",
   },
 
   statValue: {
-    fontSize: 28,
+    position: "relative",
+    zIndex: 2,
+
+    fontSize: 30,
     fontWeight: "700",
-    background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
+
+    background: "linear-gradient(135deg,#dbe4ff,#8b5cf6)",
     WebkitBackgroundClip: "text",
     WebkitTextFillColor: "transparent",
+
+    textShadow: "0 0 30px rgba(139,92,246,0.18)",
   },
 
   statLabel: {
+    position: "relative",
+    zIndex: 2,
+
+    marginTop: 6,
     fontSize: 11,
-    color: "#64748b",
+    letterSpacing: "0.12em",
+    color: "#7b85ad",
   },
 
   dangerCard: {
-    border: "1px solid rgba(239,68,68,0.25)",
-    background: "rgba(239,68,68,0.05)",
+    border: "1px solid rgba(239,68,68,0.18)",
+
+    background: `
+      linear-gradient(
+        145deg,
+        rgba(239,68,68,0.08),
+        rgba(239,68,68,0.02)
+      ),
+      rgba(7,9,22,0.26)
+    `,
   },
 
   resetRow: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: 20,
   },
 
   dangerText: {
     fontSize: 13,
-    color: "#fca5a5",
+    color: "#f5b1b1",
+    lineHeight: 1.6,
   },
 
   holdWrapper: {
     position: "relative",
-    width: 60,
-    height: 60,
+    width: 62,
+    height: 62,
+
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+
     cursor: "pointer",
   },
 
   progressRing: {
     position: "absolute",
-    width: "100%",
-    height: "100%",
+    inset: 0,
     borderRadius: "50%",
-    filter: "blur(6px)",
+    filter: "blur(7px)",
     opacity: 0.9,
-    transition: "0.1s",
+    transition: "0.1s linear",
   },
 
   resetBtn: {
-    width: 44,
-    height: 44,
+    position: "relative",
+    zIndex: 2,
+
+    width: 46,
+    height: 46,
     borderRadius: "50%",
-    border: "none",
-    background:
-      "linear-gradient(135deg,#ef4444,#dc2626)",
+    border: "1px solid rgba(255,255,255,0.10)",
+
+    background: `
+      linear-gradient(
+        145deg,
+        rgba(255,255,255,0.12),
+        rgba(255,255,255,0.03)
+      ),
+      linear-gradient(
+        135deg,
+        rgba(239,68,68,0.85),
+        rgba(220,38,38,0.75)
+      )
+    `,
+
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+
     color: "#fff",
+
+    backdropFilter: "blur(18px)",
+    WebkitBackdropFilter: "blur(18px)",
+
     boxShadow:
-      "0 0 20px rgba(239,68,68,0.6), inset 0 0 10px rgba(255,255,255,0.2)",
-          transition: "0.2s",
+      "0 0 26px rgba(239,68,68,0.28), inset 0 1px 0 rgba(255,255,255,0.10)",
+
+    transition: "0.2s ease",
   },
 };
-
