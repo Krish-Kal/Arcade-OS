@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Play, Pin, Trash2, MoreVertical, Heart } from 'lucide-react'
 import { useStore } from '../store/useStore'
+import ModifyAppModal from './ModifyAppModel'
 
 let lastSoundTime = 0
 function playHoverSound() {
@@ -62,12 +63,16 @@ const CATEGORY_COLORS = {
   default: '#6366f1',
 }
 
-export default function AppCard({ app, view = 'grid' }) {
+export default function AppCard({
+  app,
+  view = 'grid',
+  onModifyApp,
+  openModifyApp
+}) {
   const { launchItem, togglePin, removeApp } = useStore()
 
   const [hovered, setHovered] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [editOpen, setEditOpen] = useState(false)
   const [editData, setEditData] = useState({
     image: app.image || '',
     path: app.path || ''
@@ -217,10 +222,11 @@ export default function AppCard({ app, view = 'grid' }) {
             <MenuItem
               icon={<MoreVertical size={12} />}
               label="Modify App"
-              onClick={() => {
-                setEditOpen(true)
-                setMenuOpen(false)
-              }}
+             onClick={() => {
+  const handler = onModifyApp || openModifyApp
+  if (handler) handler(app)
+  setMenuOpen(false)
+}}
             />
             <MenuItem icon={<Trash2 size={12} />} label="Remove" danger onClick={() => removeApp(app.id)} />
           </div>
@@ -281,106 +287,7 @@ export default function AppCard({ app, view = 'grid' }) {
         </button>
       </div>
 
-      {editOpen && (
-        <div
-          onClick={() => setEditOpen(false)}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'rgba(0,0,0,0.6)',
-            backdropFilter: 'blur(10px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: 320,
-              borderRadius: 18,
-              padding: 16,
-              background: 'rgba(15, 20, 35, 0.95)',
-              border: '1px solid rgba(139,92,246,0.25)',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.7)'
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: '#fff' }}>
-              Modify App
-            </div>
-
-            <input
-              placeholder="App Icon URL"
-              value={editData.image}
-              onChange={(e) => setEditData({ ...editData, image: e.target.value })}
-              style={{
-                width: '100%',
-                padding: 10,
-                marginBottom: 10,
-                borderRadius: 10,
-                border: '1px solid rgba(255,255,255,0.1)',
-                background: 'rgba(255,255,255,0.05)',
-                color: '#fff',
-                fontSize: 12
-              }}
-            />
-
-            <input
-              placeholder="App Path (steam://, exe, url...)"
-              value={editData.path}
-              onChange={(e) => setEditData({ ...editData, path: e.target.value })}
-              style={{
-                width: '100%',
-                padding: 10,
-                marginBottom: 14,
-                borderRadius: 10,
-                border: '1px solid rgba(255,255,255,0.1)',
-                background: 'rgba(255,255,255,0.05)',
-                color: '#fff',
-                fontSize: 12
-              }}
-            />
-
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                onClick={() => setEditOpen(false)}
-                style={{
-                  flex: 1,
-                  padding: 10,
-                  borderRadius: 10,
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  color: '#ccc',
-                  cursor: 'pointer'
-                }}
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={() => {
-                  app.image = editData.image
-                  app.path = editData.path
-                  setEditOpen(false)
-                }}
-                style={{
-                  flex: 1,
-                  padding: 10,
-                  borderRadius: 10,
-                  background: 'linear-gradient(135deg, #6d28d9, #3b82f6)',
-                  border: 'none',
-                  color: '#fff',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+     
     </div>
   )
 }

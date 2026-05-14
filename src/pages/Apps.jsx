@@ -5,6 +5,7 @@ import { Plus, Search, Grid3X3, List, LayoutGrid, SlidersHorizontal } from 'luci
 import { useStore } from '../store/useStore'
 import AppCard from '../components/AppCard'
 import AddAppModal from '../components/AddAppModal'
+import ModifyAppModal from '../components/ModifyAppModel'
 
 const CATEGORIES = ['All', 'Dev Tools', 'Communication', 'Streaming', 'Media', 'Productivity', 'Browser', 'Utilities', 'Design', 'Other']
 
@@ -16,11 +17,11 @@ const SORTS = [
 ]
 
 export default function Apps() {
-  const { apps } = useStore()
+  const { apps, updateApp } = useStore()
 
   const [showModal, setShowModal] = useState(false)
   const [search, setSearch] = useState('')
-
+const [selectedApp, setSelectedApp] = useState(null)
   /* ✅ RESTORE FROM localStorage */
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [category, setCategory] = useState(() => localStorage.getItem('apps_category') || 'All')
@@ -364,16 +365,24 @@ export default function Apps() {
           <EmptyState search={search} onAdd={() => setShowModal(true)} />
         ) : view === 'grid' ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 14 }}>
-            {filtered.map(app => <AppCard key={app.id} app={app} view="grid" />)}
+            {filtered.map(app => <AppCard key={app.id} app={app} view="grid" onModifyApp={setSelectedApp} />)}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {filtered.map(app => <AppCard key={app.id} app={app} view="list" />)}
+            {filtered.map(app => <AppCard key={app.id} app={app} view="list" onModifyApp={setSelectedApp} />)}
           </div>
         )}
       </div>
 
       {showModal && <AddAppModal onClose={() => setShowModal(false)} />}
+
+        {selectedApp && (
+  <ModifyAppModal
+    app={selectedApp}
+    onClose={() => setSelectedApp(null)}
+    updateApp={updateApp}
+  />
+)}
     </div>
   )
 }

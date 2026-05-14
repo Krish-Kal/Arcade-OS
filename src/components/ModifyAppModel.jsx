@@ -1,60 +1,88 @@
 import React, { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, FolderOpen, Gamepad2, Upload } from 'lucide-react'
+import {
+  X,
+  FolderOpen,
+  AppWindow,
+  Upload,
+  Link2
+} from 'lucide-react'
 
 const isElectron = typeof window !== 'undefined' && window.arcadeOS
 
-const GENRES = [
-  'Action RPG', 'RPG', 'FPS', 'Strategy', 'Roguelike',
-  'Metroidvania', 'Platformer', 'Racing', 'Sports',
-  'Simulation', 'Space RPG', 'Adventure', 'Horror',
-  'Puzzle', 'Other'
+const CATEGORIES = [
+  'Productivity',
+  'Dev Tools',
+  'Media',
+  'Browser',
+  'Communication',
+  'Streaming',
+  'Utilities',
+  'Design',
+  'AI Tools',
+  'Other'
 ]
 
-export default function ModifyGameModal({ game, onClose, updateGame }) {
+export default function ModifyAppModal({ app, onClose, updateApp }) {
 
   const [form, setForm] = useState({
-    name: game.name || '',
-    path: game.path || '',
-    genre: game.genre || 'Action RPG',
-    image: game.image || ''
+    name: app.name || '',
+    path: app.path || '',
+    image: app.image || '',
+    category: app.category || 'Productivity'
   })
 
   const [errors, setErrors] = useState({})
 
   const update = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
-  /* ================= FILE PICKERS (SAME AS ADD GAME) ================= */
+  /* ================= FILE PICKERS ================= */
 
   const browsePath = async () => {
     if (!isElectron) {
-      update('path', 'C:\\Games\\MyGame\\game.exe')
+      update('path', 'C:\\Program Files\\MyApp\\app.exe')
       return
     }
 
     const p = await window.arcadeOS.fs.selectExecutable()
+
     if (p) {
       update('path', p)
 
       if (!form.name) {
-        update('name', p.split(/[\\/]/).pop().replace(/\.[^.]+$/, ''))
+        update(
+          'name',
+          p.split(/[\\/]/).pop().replace(/\.[^.]+$/, '')
+        )
       }
     }
   }
 
   const browseImage = async () => {
     if (!isElectron) return
+
     const p = await window.arcadeOS.fs.selectImage()
-    if (p) update('image', `file://${p}`)
+
+    if (p) {
+      update('image', `file://${p}`)
+    }
   }
 
   /* ================= VALIDATION ================= */
 
   const validate = () => {
     const e = {}
-    if (!form.name.trim()) e.name = 'Game name is required'
-    if (!form.path.trim()) e.path = 'Executable path is required'
+
+    if (!form.name.trim()) {
+      e.name = 'App name is required'
+    }
+
+    if (!form.path.trim()) {
+      e.path = 'Launch path is required'
+    }
+
     setErrors(e)
+
     return Object.keys(e).length === 0
   }
 
@@ -63,11 +91,11 @@ export default function ModifyGameModal({ game, onClose, updateGame }) {
   const submit = () => {
     if (!validate()) return
 
-    updateGame(game.id, {
+    updateApp(app.id, {
       name: form.name.trim(),
       path: form.path.trim(),
-      genre: form.genre,
-      image: form.image || null
+      image: form.image || null,
+      category: form.category
     })
 
     onClose()
@@ -82,7 +110,11 @@ export default function ModifyGameModal({ game, onClose, updateGame }) {
           maxWidth: '92vw',
           borderRadius: 18,
           background: `
-            linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))
+            linear-gradient(
+              180deg,
+              rgba(255,255,255,0.05),
+              rgba(255,255,255,0.02)
+            )
           `,
           border: '1px solid rgba(255,255,255,0.08)',
           backdropFilter: 'blur(22px)',
@@ -92,43 +124,58 @@ export default function ModifyGameModal({ game, onClose, updateGame }) {
         }}
       >
 
-        {/* HEADER (EXACT SAME STYLE) */}
-        <div style={{
-          padding: '18px 20px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          borderBottom: '1px solid rgba(255,255,255,0.06)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-
-            <div style={{
-              width: 34,
-              height: 34,
-              borderRadius: 10,
-              background: 'rgba(34,211,238,0.12)',
-              border: '1px solid rgba(34,211,238,0.3)',
+        {/* HEADER */}
+        <div
+          style={{
+            padding: '18px 20px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderBottom: '1px solid rgba(255,255,255,0.06)'
+          }}
+        >
+          <div
+            style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Gamepad2 size={16} color="#22d3ee" />
+              gap: 10
+            }}
+          >
+
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                background: 'rgba(139,92,246,0.12)',
+                border: '1px solid rgba(139,92,246,0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <AppWindow size={16} color="#a78bfa" />
             </div>
 
             <div>
-              <div style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: '#e5e7eb',
-                letterSpacing: '0.06em'
-              }}>
-                MODIFY GAME
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#e5e7eb',
+                  letterSpacing: '0.06em'
+                }}
+              >
+                MODIFY APP
               </div>
-              <div style={{
-                fontSize: 11,
-                color: '#9ca3af'
-              }}>
-                Edit executable + metadata
+
+              <div
+                style={{
+                  fontSize: 11,
+                  color: '#9ca3af'
+                }}
+              >
+                Edit launcher + application metadata
               </div>
             </div>
           </div>
@@ -146,32 +193,37 @@ export default function ModifyGameModal({ game, onClose, updateGame }) {
           </button>
         </div>
 
-        {/* BODY (IDENTICAL STRUCTURE) */}
-        <div style={{
-          padding: 20,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 14
-        }}>
+        {/* BODY */}
+        <div
+          style={{
+            padding: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14
+          }}
+        >
 
-          {/* NAME */}
-          <Field label="Game Name" error={errors.name}>
+          {/* APP NAME */}
+          <Field label="App Name" error={errors.name}>
             <input
               value={form.name}
               onChange={e => update('name', e.target.value)}
-              placeholder="e.g. Cyberpunk 2077"
+              placeholder="e.g. Visual Studio Code"
               style={inputStyle(errors.name)}
             />
           </Field>
 
           {/* PATH */}
-          <Field label="Executable Path" error={errors.path}>
+          <Field label="Launch Path" error={errors.path}>
             <div style={{ display: 'flex', gap: 8 }}>
               <input
                 value={form.path}
                 onChange={e => update('path', e.target.value)}
-                placeholder="C:\Games\Game.exe"
-                style={{ ...inputStyle(errors.path), flex: 1 }}
+                placeholder="exe, steam://, https:// ..."
+                style={{
+                  ...inputStyle(errors.path),
+                  flex: 1
+                }}
               />
 
               <IconButton onClick={browsePath}>
@@ -180,29 +232,36 @@ export default function ModifyGameModal({ game, onClose, updateGame }) {
             </div>
           </Field>
 
-          {/* GENRE */}
-          <Field label="Genre">
+          {/* CATEGORY */}
+          <Field label="Category">
             <select
-              value={form.genre}
-              onChange={e => update('genre', e.target.value)}
+              value={form.category}
+              onChange={e => update('category', e.target.value)}
               style={selectStyle}
             >
-              {GENRES.map(g => (
-                <option key={g} value={g} style={{ background: '#0f0f15' }}>
-                  {g}
+              {CATEGORIES.map(c => (
+                <option
+                  key={c}
+                  value={c}
+                  style={{ background: '#0f0f15' }}
+                >
+                  {c}
                 </option>
               ))}
             </select>
           </Field>
 
           {/* IMAGE */}
-          <Field label="Game Cover (optional)">
+          <Field label="App Icon / Banner">
             <div style={{ display: 'flex', gap: 8 }}>
               <input
                 value={form.image}
                 onChange={e => update('image', e.target.value)}
-                placeholder="Image URL or file path"
-                style={{ ...inputStyle(), flex: 1 }}
+                placeholder="Image URL or local image path"
+                style={{
+                  ...inputStyle(),
+                  flex: 1
+                }}
               />
 
               <IconButton onClick={browseImage}>
@@ -211,13 +270,15 @@ export default function ModifyGameModal({ game, onClose, updateGame }) {
             </div>
 
             {form.image && (
-              <div style={{
-                marginTop: 10,
-                height: 85,
-                borderRadius: 12,
-                overflow: 'hidden',
-                border: '1px solid rgba(255,255,255,0.08)'
-              }}>
+              <div
+                style={{
+                  marginTop: 10,
+                  height: 85,
+                  borderRadius: 12,
+                  overflow: 'hidden',
+                  border: '1px solid rgba(255,255,255,0.08)'
+                }}
+              >
                 <img
                   src={form.image}
                   alt="preview"
@@ -231,21 +292,30 @@ export default function ModifyGameModal({ game, onClose, updateGame }) {
               </div>
             )}
           </Field>
+
         </div>
 
         {/* FOOTER */}
-        <div style={{
-          padding: '14px 20px',
-          display: 'flex',
-          justifyContent: 'flex-end',
-          gap: 10,
-          borderTop: '1px solid rgba(255,255,255,0.06)'
-        }}>
-          <button onClick={onClose} style={secondaryBtn}>
+        <div
+          style={{
+            padding: '14px 20px',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 10,
+            borderTop: '1px solid rgba(255,255,255,0.06)'
+          }}
+        >
+          <button
+            onClick={onClose}
+            style={secondaryBtn}
+          >
             Cancel
           </button>
 
-          <button onClick={submit} style={primaryBtn}>
+          <button
+            onClick={submit}
+            style={primaryBtn}
+          >
             Save Changes
           </button>
         </div>
@@ -269,7 +339,7 @@ function Overlay({ children, onClose }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 1000,
+        zIndex: 2000,
         backdropFilter: 'blur(6px)'
       }}
     >
@@ -281,19 +351,29 @@ function Overlay({ children, onClose }) {
 function Field({ label, error, children }) {
   return (
     <div>
-      <label style={{
-        fontSize: 11,
-        color: '#9ca3af',
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase',
-        marginBottom: 6,
-        display: 'block'
-      }}>
+      <label
+        style={{
+          fontSize: 11,
+          color: '#9ca3af',
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          marginBottom: 6,
+          display: 'block'
+        }}
+      >
         {label}
       </label>
+
       {children}
+
       {error && (
-        <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>
+        <div
+          style={{
+            fontSize: 11,
+            color: '#ef4444',
+            marginTop: 4
+          }}
+        >
           {error}
         </div>
       )}
@@ -302,6 +382,7 @@ function Field({ label, error, children }) {
 }
 
 function IconButton({ children, onClick }) {
+
   const [hover, setHover] = useState(false)
 
   return (
@@ -314,7 +395,9 @@ function IconButton({ children, onClick }) {
         height: 38,
         borderRadius: 10,
         border: '1px solid rgba(255,255,255,0.08)',
-        background: hover ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)',
+        background: hover
+          ? 'rgba(255,255,255,0.12)'
+          : 'rgba(255,255,255,0.04)',
         color: '#e5e7eb',
         cursor: 'pointer',
         display: 'flex',
@@ -346,7 +429,11 @@ const inputStyle = (error) => ({
   width: '100%',
   padding: '10px 12px',
   background: 'rgba(255,255,255,0.03)',
-  border: `1px solid ${error ? '#ef4444' : 'rgba(255,255,255,0.08)'}`,
+  border: `1px solid ${
+    error
+      ? '#ef4444'
+      : 'rgba(255,255,255,0.08)'
+  }`,
   borderRadius: 10,
   color: '#e5e7eb',
   fontSize: 13,
@@ -356,9 +443,9 @@ const inputStyle = (error) => ({
 const primaryBtn = {
   padding: '10px 18px',
   borderRadius: 10,
-  background: '#22d3ee',
+  background: '#8b5cf6',
   border: 'none',
-  color: '#000',
+  color: '#fff',
   fontWeight: 700,
   cursor: 'pointer'
 }
@@ -372,12 +459,22 @@ const secondaryBtn = {
   cursor: 'pointer'
 }
 
-/* ANIMATION */
+/* ================= ANIMATION ================= */
+
 const style = document.createElement('style')
+
 style.innerHTML = `
 @keyframes popIn {
-  from { transform: scale(0.96); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 `
+
 document.head.appendChild(style)

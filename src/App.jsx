@@ -20,49 +20,6 @@ const PAGES = {
   settings: Settings
 }
 
-// 🎮 OPTIONAL FPS Counter (kept reusable, not tied to settings anymore)
-function FPSCounter() {
-  const [fps, setFps] = React.useState(0)
-
-  useEffect(() => {
-    let frames = 0
-    let last = performance.now()
-
-    const loop = () => {
-      frames++
-      const now = performance.now()
-
-      if (now >= last + 1000) {
-        setFps(frames)
-        frames = 0
-        last = now
-      }
-
-      requestAnimationFrame(loop)
-    }
-
-    loop()
-  }, [])
-
-  return (
-    <div style={{
-      position: 'fixed',
-      top: 14,
-      right: 14,
-      fontSize: 12,
-      fontFamily: 'var(--font-mono)',
-      color: 'var(--accent-cyan)',
-      zIndex: 9999,
-      opacity: 0.8,
-      padding: '4px 8px',
-      borderRadius: 8,
-      background: 'rgba(0,0,0,0.25)',
-      backdropFilter: 'blur(8px)',
-    }}>
-      {fps} FPS
-    </div>
-  )
-}
 
 export default function App() {
  const { activePage } = useStore()

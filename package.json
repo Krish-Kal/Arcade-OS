@@ -33,28 +33,49 @@
     "vite": "^8.0.8",
     "wait-on": "^7.2.0"
   },
-  "build": {
-    "appId": "com.arcadeos.app",
-    "productName": "Arcade OS",
-    "directories": {
-      "output": "dist-electron"
-    },
-    "files": [
-      "dist/**/*",
-      "electron/**/*",
-      "preload.js"
+ "build": {
+  "appId": "com.arcadeos.app",
+  "productName": "Arcade OS",
+
+  "directories": {
+    "output": "release"
+  },
+
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "public/icons/**/*",
+    "package.json"
+  ],
+
+  "asar": true,
+
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
     ],
-    "win": {
-      "target": "nsis",
-      "icon": "public/icons/icon.ico"
-    },
-    "mac": {
-      "target": "dmg",
-      "icon": "public/icons/icon.icns"
-    },
-    "linux": {
-      "target": "AppImage",
-      "icon": "public/icons/icon.png"
-    }
+    "icon": "public/icons/icon.ico"
+  },
+
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Arcade OS"
+  },
+
+  "mac": {
+    "target": "dmg",
+    "icon": "public/icons/icon.icns"
+  },
+
+  "linux": {
+    "target": "AppImage",
+    "icon": "public/icons/icon.png"
   }
+}
 }

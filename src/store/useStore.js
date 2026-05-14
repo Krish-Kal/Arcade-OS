@@ -3,16 +3,6 @@ import { persist } from 'zustand/middleware'
 
 const isElectron = typeof window !== 'undefined' && window.arcadeOS
 
-// ---------------- DEMO DATA ----------------
-const DEMO_GAMES = [
-  { id: 'g1', name: 'Cyberpunk 2077', path: '/games/cyberpunk.exe', genre: 'RPG', launchCount: 42, pinned: true, addedAt: Date.now() - 86400000 * 5 },
-  { id: 'g2', name: 'Elden Ring', path: '/games/eldenring.exe', genre: 'Action RPG', launchCount: 88, pinned: true, addedAt: Date.now() - 86400000 * 10 },
-]
-
-const DEMO_APPS = [
-  { id: 'a1', name: 'Visual Studio Code', path: '/apps/code.exe', category: 'Dev Tools', launchCount: 120, pinned: true, addedAt: Date.now() - 86400000 * 30 },
-]
-
 // ---------------- NAVIGATION SLICE ----------------
 const createNavigationSlice = (set) => ({
   activePage: 'home',
@@ -113,8 +103,8 @@ const createAICommandSlice = (set) => ({
 
 // ---------------- LIBRARY SLICE ----------------
 const createLibrarySlice = (set, get) => ({
-  games: DEMO_GAMES,
-  apps: DEMO_APPS,
+games: [],
+apps: [],
   recentLaunches: [],
 
   // ---- CLEAR ----
@@ -252,9 +242,11 @@ export const useStore = create(
         // notifications excluded intentionally
       }),
 
-      onFinishHydration: (state) => {
-        state._hydrated = true
-      }
+      onRehydrateStorage: () => (state) => {
+  if (state) {
+    state._hydrated = true
+  }
+},
     }
   )
 )
