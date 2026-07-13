@@ -118,7 +118,6 @@ apps: [],
     const newGame = {
       id: `g${Date.now()}`,
       launchCount: 0,
-      pinned: false,
       addedAt: Date.now(),
       ...game
     }
@@ -140,7 +139,6 @@ apps: [],
     const newApp = {
       id: `a${Date.now()}`,
       launchCount: 0,
-      pinned: false,
       addedAt: Date.now(),
       ...app
     }
@@ -156,23 +154,6 @@ apps: [],
     set(s => ({
       apps: s.apps.map(a => a.id === id ? { ...a, ...patch } : a)
     })),
-
-  // ---- PIN ----
-  togglePin: (id, type) => {
-    if (type === 'game') {
-      set(s => ({
-        games: s.games.map(g =>
-          g.id === id ? { ...g, pinned: !g.pinned } : g
-        )
-      }))
-    } else {
-      set(s => ({
-        apps: s.apps.map(a =>
-          a.id === id ? { ...a, pinned: !a.pinned } : a
-        )
-      }))
-    }
-  },
 
   // ---- LAUNCH ----
   launchItem: async (item, type) => {

@@ -32,11 +32,6 @@ export function sortGames(games, sortBy = 'launches') {
           new Date(b.addedAt || 0) - new Date(a.addedAt || 0)
       )
 
-    case 'pinned':
-      return list.sort(
-        (a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)
-      )
-
     default:
       return list
   }

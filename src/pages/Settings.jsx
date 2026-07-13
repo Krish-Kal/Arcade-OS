@@ -1,13 +1,11 @@
-import React, { useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Database, AlertTriangle } from "lucide-react";
 import { useStore } from "../store/useStore";
 
 export default function ControlPanel() {
-  const store = useStore();
-
-  const games = store.games || [];
-  const apps = store.apps || [];
-  const clearLibrary = store.clearLibrary || (() => {});
+  const games = useStore(state => state.games) || [];
+  const apps = useStore(state => state.apps) || [];
+  const clearLibrary = useStore(state => state.clearLibrary) || (() => {});
 
   const [progress, setProgress] = useState(0);
   const intervalRef = useRef(null);
@@ -21,6 +19,7 @@ export default function ControlPanel() {
 
       if (value >= 100) {
         clearInterval(intervalRef.current);
+        intervalRef.current = null;
         clearLibrary();
         setProgress(0);
       }
@@ -29,8 +28,13 @@ export default function ControlPanel() {
 
   const cancelHold = () => {
     clearInterval(intervalRef.current);
+    intervalRef.current = null;
     setProgress(0);
   };
+
+  useEffect(() => () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+  }, []);
 
   return (
     <div style={styles.page}>
@@ -120,8 +124,8 @@ const styles = {
     background: "transparent",
 
     color: "#e5e7eb",
-    backdropFilter: "blur(20px) saturate(140%)",
-    WebkitBackdropFilter: "blur(20px) saturate(140%)",
+    backdropFilter: "blur(12px) saturate(135%)",
+    WebkitBackdropFilter: "blur(12px) saturate(135%)",
   },
 
   /* ambient glows */
@@ -133,7 +137,7 @@ const styles = {
     height: 340,
     borderRadius: "50%",
     background: "rgba(91,140,255,0.14)",
-    filter: "blur(90px)",
+    filter: "blur(58px)",
     pointerEvents: "none",
   },
 
@@ -145,7 +149,7 @@ const styles = {
     height: 300,
     borderRadius: "50%",
     background: "rgba(139,92,246,0.12)",
-    filter: "blur(90px)",
+    filter: "blur(58px)",
     pointerEvents: "none",
   },
 
@@ -224,8 +228,8 @@ const styles = {
 
     border: "1px solid rgba(255,255,255,0.08)",
 
-    backdropFilter: "blur(28px) saturate(160%)",
-    WebkitBackdropFilter: "blur(28px) saturate(160%)",
+    backdropFilter: "blur(18px) saturate(150%)",
+    WebkitBackdropFilter: "blur(18px) saturate(150%)",
 
     boxShadow:
       "0 18px 60px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06)",

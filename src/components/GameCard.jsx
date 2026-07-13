@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Play,
-  Pin,
   Trash2,
   MoreVertical,
   Gamepad2,
-  Heart
+  Heart,
+  FolderOpen
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 
@@ -30,6 +30,8 @@ const RARITY = {
 
 const getRarity = (game) => game.rarity || 'common'
 
+let lastSoundTime = 0
+
 // ================= AUDIO CONTEXT (reusable) =================
 let audioCtx
 function getAudioCtx() {
@@ -39,45 +41,54 @@ function getAudioCtx() {
   return audioCtx
 }
 
-// ================= SOUND (soft UI whoosh) =================
+// ================= SOUND (strong click + sub bass) =================
 function playHoverSound() {
   try {
     const ctx = getAudioCtx()
 
-    const duration = 0.09
-    const bufferSize = ctx.sampleRate * duration
-    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate)
-    const data = buffer.getChannelData(0)
-
-    // smooth airy noise (not harsh)
-    for (let i = 0; i < bufferSize; i++) {
-      const t = i / bufferSize
-      data[i] =
-        (Math.random() * 2 - 1) *
-        (1 - t) *
-        (1 - t) * // smoother decay curve
-        0.08
+    // 🔥 IMPORTANT: resume context (fixes silent audio in many browsers)
+    if (ctx.state === 'suspended') {
+      ctx.resume()
     }
 
-    const noise = ctx.createBufferSource()
-    noise.buffer = buffer
+    const now = ctx.currentTime
 
-    const filter = ctx.createBiquadFilter()
-    filter.type = 'bandpass'
-    filter.frequency.value = 1200
-    filter.Q.value = 0.8
-
+    /* ===== MAIN CLICK (strong + audible) ===== */
+    const osc = ctx.createOscillator()
     const gain = ctx.createGain()
-    gain.gain.setValueAtTime(0.0001, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.05, ctx.currentTime + 0.01)
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration)
 
-    noise.connect(filter)
-    filter.connect(gain)
+    osc.type = 'square' // 🔥 sharper than triangle
+    osc.frequency.setValueAtTime(1200, now)
+    osc.frequency.exponentialRampToValueAtTime(600, now + 0.12)
+
+    gain.gain.setValueAtTime(0.0001, now)
+    gain.gain.exponentialRampToValueAtTime(0.25, now + 0.01) // 🔥 MUCH louder
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14)
+
+    osc.connect(gain)
     gain.connect(ctx.destination)
 
-    noise.start()
-    noise.stop(ctx.currentTime + duration)
+    osc.start(now)
+    osc.stop(now + 0.14)
+
+    /* ===== SUB BASS LAYER (gives weight / premium feel) ===== */
+    const sub = ctx.createOscillator()
+    const subGain = ctx.createGain()
+
+    sub.type = 'sine'
+    sub.frequency.setValueAtTime(180, now)
+    sub.frequency.exponentialRampToValueAtTime(90, now + 0.12)
+
+    subGain.gain.setValueAtTime(0.0001, now)
+    subGain.gain.exponentialRampToValueAtTime(0.18, now + 0.02)
+    subGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14)
+
+    sub.connect(subGain)
+    subGain.connect(ctx.destination)
+
+    sub.start(now)
+    sub.stop(now + 0.14)
+
   } catch (e) {}
 }
 
@@ -112,14 +123,18 @@ const GENRES = [
   'Other'
 ]
 
-export default function GameCard({ game, view = 'grid', onEdit }) {
-  const { launchItem, togglePin, removeGame } = useStore()
+export default React.memo(function GameCard({ game, view = 'grid', onEdit }) {
+  const launchItem = useStore(state => state.launchItem)
+  const removeGame = useStore(state => state.removeGame)
 
   const [hovered, setHovered] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [fav, setFav] = useState(game.favorite || false)
   const menuRef = useRef(null)
   const hoverPlayed = useRef(false)
+  const cardRectRef = useRef(null)
+  const tiltFrameRef = useRef(null)
+  const nextTiltRef = useRef({ x: 0, y: 0 })
 
   useEffect(() => {
     if (!menuOpen) return
@@ -134,9 +149,34 @@ export default function GameCard({ game, view = 'grid', onEdit }) {
     return () => document.removeEventListener('mousedown', close)
   }, [menuOpen])
 
-  const handleLaunch = () => {
+  useEffect(() => () => {
+    if (tiltFrameRef.current) cancelAnimationFrame(tiltFrameRef.current)
+  }, [])
+
+  const commitTilt = useCallback(() => {
+    tiltFrameRef.current = null
+    setTilt(nextTiltRef.current)
+  }, [])
+
+  const handleLaunch = useCallback(() => {
     vibrate()
     launchItem(game, 'game')
+  }, [game, launchItem])
+
+  const handleRevealPath = async () => {
+    if (!game.path) {
+      console.warn('Game path is not set')
+      return
+    }
+    try {
+      const result = await window.arcadeOS.launch.revealPath(game.path)
+      if (!result.success) {
+        console.warn('Failed to reveal path:', result.error)
+      }
+    } catch (err) {
+      console.error('Error revealing path:', err)
+    }
+    setMenuOpen(false)
   }
 
   const color = GENRE_COLORS[game.genre] || GENRE_COLORS.default
@@ -180,15 +220,16 @@ export default function GameCard({ game, view = 'grid', onEdit }) {
   /* ================= GRID / PREMIUM TILE ================= */
   return (
     <div
-      onMouseEnter={() => {
+      onMouseEnter={(e) => {
         if (!hoverPlayed.current) {
           playHoverSound()
           hoverPlayed.current = true
         }
+        cardRectRef.current = e.currentTarget.getBoundingClientRect()
         setHovered(true)
       }}
       onMouseMove={(e) => {
-        const rect = e.currentTarget.getBoundingClientRect()
+        const rect = cardRectRef.current || e.currentTarget.getBoundingClientRect()
 
         const x = e.clientX - rect.left
         const y = e.clientY - rect.top
@@ -199,30 +240,41 @@ export default function GameCard({ game, view = 'grid', onEdit }) {
         const rotateX = ((y - centerY) / centerY) * -10
         const rotateY = ((x - centerX) / centerX) * 10
 
-        setTilt({ x: rotateY, y: rotateX })
+        nextTiltRef.current = { x: rotateY, y: rotateX }
+        if (!tiltFrameRef.current) {
+          tiltFrameRef.current = requestAnimationFrame(commitTilt)
+        }
       }}
       onMouseLeave={() => {
         hoverPlayed.current = false
+        cardRectRef.current = null
+        if (tiltFrameRef.current) {
+          cancelAnimationFrame(tiltFrameRef.current)
+          tiltFrameRef.current = null
+        }
         setHovered(false)
         setTilt({ x: 0, y: 0 })
       }}
       style={{
         position: 'relative',
-        borderRadius: 22,
-        overflow: 'hidden',
-        isolation: 'auto',
-        transformStyle: 'preserve-3d',
+        borderRadius: 18,
+        overflow: 'visible',
+        isolation: 'isolate',
+        transformStyle: 'flat',
+        zIndex: hovered || menuOpen ? 50 : 1,
         willChange: 'transform',
         cursor: 'pointer',
 
-        transform: `
-          perspective(1400px)
-          rotateX(${tilt.y}deg)
-          rotateY(${tilt.x}deg)
-          translateZ(0)
-          translateY(${hovered ? -5 : 0}px)
-          scale(${hovered ? 1.012 : 1})
-        `,
+        transform: menuOpen
+          ? 'translateY(-3px)'
+          : `
+              perspective(1400px)
+              rotateX(${tilt.y}deg)
+              rotateY(${tilt.x}deg)
+              translateZ(0)
+              translateY(${hovered ? -3 : 0}px)
+              scale(${hovered ? 1.012 : 1})
+            `,
 
         backfaceVisibility: 'hidden',
         transition: 'transform 0.35s cubic-bezier(.2,.8,.2,1), box-shadow 0.3s ease',
@@ -237,7 +289,7 @@ export default function GameCard({ game, view = 'grid', onEdit }) {
 
         boxShadow: hovered
           ? `
-            0 30px 90px rgba(0,0,0,0.85),
+            0 20px 55px rgba(0,0,0,0.72),
             0 0 30px rgba(139,92,246,0.18),
             inset 0 0 0 1px rgba(255,255,255,0.06)
           `
@@ -247,6 +299,22 @@ export default function GameCard({ game, view = 'grid', onEdit }) {
           `
       }}
     >
+{/* CARD CONTENT WRAPPER */}
+<div
+  style={{
+    position: 'relative',
+    zIndex: 1
+  }}
+>
+  {/* INNER CLIP LAYER */}
+  <div
+    style={{
+      position: 'relative',
+      borderRadius: 18,
+      overflow: 'hidden',
+      isolation: 'isolate'
+    }}
+  >
       {/* Animated glow frame */}
       <div
         style={{
@@ -262,35 +330,35 @@ export default function GameCard({ game, view = 'grid', onEdit }) {
 
       {/* IMAGE SECTION */}
       <div
-        style={{
-          position: 'relative',
-          height: 250,
-          overflow: 'hidden',
-          borderTopLeftRadius: 22,
-          borderTopRightRadius: 22,
-          transform: 'translateZ(0)',
-          clipPath: 'inset(0 round 22px 22px 0 0)'
-        }}
-      >
+  style={{
+    position: 'relative',
+    zIndex: 1,
+    height: 215,
+    overflow: 'hidden',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    transform: 'translateZ(0)',
+    backfaceVisibility: 'hidden'
+  }}
+>
         {game.image ? (
           <>
-           <img
+          <img
   src={game.image}
   alt={game.name}
   style={{
     width: '100%',
     height: '100%',
     objectFit: 'cover',
+    objectPosition: 'center 12%',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    display: 'block',
 
-    /* 🔥 REFINED ZOOM */
     transform: hovered ? 'scale(1.05)' : 'scale(1)',
 
     transition: 'transform 0.9s cubic-bezier(.2,.8,.2,1)',
 
-    /* 🔥 LESS DARK (better visibility) */
-    filter: hovered
-      ? 'brightness(1.12) contrast(1.2) saturate(1.25)'
-      : 'brightness(0.82) contrast(1.08) saturate(1.05)'
   }}
 />
             <div
@@ -355,7 +423,8 @@ export default function GameCard({ game, view = 'grid', onEdit }) {
             background: `
               linear-gradient(to top, rgba(0,0,0,0.92), transparent 70%),
               radial-gradient(circle at 30% 10%, ${color}18, transparent 60%)
-            `
+            `,
+            pointerEvents: 'none'
           }}
         />
 
@@ -388,22 +457,6 @@ export default function GameCard({ game, view = 'grid', onEdit }) {
     </div>
   )}
 
-  {game.pinned && (
-    <div
-      style={{
-        fontSize: 9,
-        padding: '3px 6px',
-        borderRadius: 999,
-        background: 'rgba(255, 215, 0, 0.12)',
-        border: '1px solid rgba(255, 215, 0, 0.35)',
-        color: '#fbbf24',
-        fontWeight: 600,
-        letterSpacing: '0.05em'
-      }}
-    >
-      PIN
-    </div>
-  )}
 </div>
 
         {/* ACTION ICONS */}
@@ -413,7 +466,8 @@ export default function GameCard({ game, view = 'grid', onEdit }) {
             top: 14,
             right: 14,
             display: 'flex',
-            gap: 8
+            gap: 8,
+            zIndex: 30
           }}
         >
           <IconBtn
@@ -433,18 +487,20 @@ export default function GameCard({ game, view = 'grid', onEdit }) {
             position: 'absolute',
             bottom: 0,
             width: '100%',
-            padding: '16px 16px 14px'
+            padding: '13px 13px 12px',
+            zIndex: 20
           }}
         >
           <div
             style={{
-              fontSize: 14,
+              fontSize: 11,
               fontWeight: 700,
               color: '#f3f4f6',
               letterSpacing: '0.2px',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
-              textOverflow: 'ellipsis'
+              textOverflow: 'ellipsis',
+              
             }}
           >
             {game.name}
@@ -481,31 +537,56 @@ export default function GameCard({ game, view = 'grid', onEdit }) {
           </div>
         </div>
       </div>
-
+    </div> {/* END INNER CLIP LAYER */}
+</div> {/* END CONTENT WRAPPER */}
       {/* MENU */}
       {menuOpen && (
         <div
           ref={menuRef}
           className="game-menu"
           style={{
-            position: 'absolute',
-            right: 14,
-            top: 62,
-            background: 'rgba(10, 12, 20, 0.96)',
-            backdropFilter: 'blur(22px)',
-            borderRadius: 14,
-            border: '1px solid rgba(139,92,246,0.18)',
-            overflow: 'hidden',
-            minWidth: 170,
-            boxShadow: '0 18px 50px rgba(0,0,0,0.75)',
-            padding: 4
-          }}
+  position: 'absolute',
+
+  top: 52,
+  right: -6,
+
+  zIndex: 9999999,
+
+  pointerEvents: 'auto',
+
+  background: 'rgba(10, 12, 20, 0.96)',
+
+  backdropFilter: 'blur(24px)',
+  WebkitBackdropFilter: 'blur(24px)',
+
+  borderRadius: 16,
+
+  border: '1px solid rgba(139,92,246,0.22)',
+
+  overflow: 'hidden',
+
+  minWidth: 180,
+
+  boxShadow: `
+    0 24px 60px rgba(0,0,0,0.82),
+    0 0 0 1px rgba(255,255,255,0.04),
+    0 0 35px rgba(139,92,246,0.18)
+  `,
+
+  padding: 5,
+
+  transform: `
+    translateY(0px)
+    scale(1)
+  `,
+
+  transformOrigin: 'top right',
+
+  animation: 'menuPop 0.16s cubic-bezier(.2,.8,.2,1)',
+
+  isolation: 'isolate'
+}}
         >
-          <MenuItem
-            icon={<Pin size={12} />}
-            label="Pin Game"
-            onClick={() => togglePin(game.id, 'game')}
-          />
           <MenuItem
             icon={<Gamepad2 size={12} />}
             label="Modify Game"
@@ -514,6 +595,11 @@ export default function GameCard({ game, view = 'grid', onEdit }) {
               setMenuOpen(false)
               onEdit?.(game)
             }}
+          />
+          <MenuItem
+            icon={<FolderOpen size={12} />}
+            label="Open File Location"
+            onClick={handleRevealPath}
           />
           <MenuItem
             icon={<Trash2 size={12} />}
@@ -526,7 +612,7 @@ export default function GameCard({ game, view = 'grid', onEdit }) {
 
     </div>
   )
-}
+})
 
 /* ================= REUSABLES ================= */
 
@@ -543,9 +629,9 @@ function PlayButton({ onClick, color }) {
         e.currentTarget.style.boxShadow = `0 8px 20px ${color}35`
       }}
       style={{
-        width: 32,
-        height: 32,
-        borderRadius: 10,
+        width: 28,
+height: 28,
+        borderRadius: 9,
         border: '1px solid rgba(255,255,255,0.12)',
         backdropFilter: 'blur(10px)',
         background: `linear-gradient(135deg, ${color}, #0b1220)`,
@@ -568,13 +654,16 @@ function IconBtn({ icon, onClick, active }) {
 
   return (
     <button
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick?.(e)
+      }}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
-        width: 32,
-        height: 32,
-        borderRadius: 10,
+        width: 28,
+height: 28,
+        borderRadius: 9,
         border: '1px solid rgba(255,255,255,0.08)',
         background:
           h || active
@@ -622,7 +711,10 @@ function MenuItem({ icon, label, danger, onClick, styleVariant }) {
 
   return (
     <button
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick?.(e)
+      }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
@@ -697,7 +789,7 @@ function Input({ label, value, onChange }) {
         style={{
           width: '100%',
           padding: '10px 12px',
-          borderRadius: 10,
+          borderRadius: 9,
           background: 'rgba(255,255,255,0.04)',
           border: '1px solid rgba(255,255,255,0.08)',
           color: '#fff',

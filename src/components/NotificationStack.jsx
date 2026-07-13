@@ -18,7 +18,7 @@ const COLORS = {
 }
 
 export default function NotificationStack() {
-  const { notifications } = useStore()
+  const notifications = useStore(state => state.notifications)
   return (
     <div style={{
       position: 'fixed', bottom: 20, right: 20,

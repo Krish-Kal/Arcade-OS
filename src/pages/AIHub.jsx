@@ -1,5 +1,5 @@
 // AIHub Page - AI-powered assistant for gaming recommendations and tips
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react'
 import { Bot, Send, Trash2, Settings, Sparkles, User, Copy, Check, Key } from 'lucide-react'
 import { useStore } from '../store/useStore'
 
@@ -13,7 +13,12 @@ const SUGGESTED_PROMPTS = [
 ]
 
 export default function AIHub() {
-  const { chatMessages, addChatMessage, clearChat, settings, updateSettings, games } = useStore()
+  const chatMessages = useStore(state => state.chatMessages)
+  const addChatMessage = useStore(state => state.addChatMessage)
+  const clearChat = useStore(state => state.clearChat)
+  const settings = useStore(state => state.settings)
+  const updateSettings = useStore(state => state.updateSettings)
+  const games = useStore(state => state.games)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -26,19 +31,23 @@ export default function AIHub() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages, loading])
 
-  const saveApiSettings = () => {
+  const saveApiSettings = useCallback(() => {
     updateSettings({ aiApiKey: apiKey, aiProvider: provider })
     setShowSettings(false)
-  }
+  }, [apiKey, provider, updateSettings])
 
-  const buildSystemPrompt = () => {
-    const gameList = games.map(g => `${g.name} (${g.genre}, played ${g.launchCount} times)`).join(', ')
+  const gameList = useMemo(
+    () => games.map(g => `${g.name} (${g.genre}, played ${g.launchCount} times)`).join(', '),
+    [games]
+  )
+
+  const buildSystemPrompt = useCallback(() => {
     return `You are an expert AI gaming assistant integrated into Arcade OS, a premium desktop gaming launcher. 
 You help users with game recommendations, tips, strategies, and library management.
 The user's game library includes: ${gameList || 'no games yet'}.
 Be concise, enthusiastic about gaming, and always personalize responses based on their library.
 Format responses clearly with markdown-style structure when helpful.`
-  }
+  }, [gameList])
 
   const sendMessage = async () => {
     const text = input.trim()

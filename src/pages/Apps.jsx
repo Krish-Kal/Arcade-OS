@@ -1,6 +1,6 @@
 // Apps Page - Ultra Premium Library (PERFECT MATCH WITH GAMES)
 
-import React, { useState, useMemo, useRef, useEffect } from 'react'
+import React, { useCallback, useState, useMemo, useRef, useEffect } from 'react'
 import { Plus, Search, Grid3X3, List, LayoutGrid, SlidersHorizontal } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import AppCard from '../components/AppCard'
@@ -13,11 +13,11 @@ const SORTS = [
   { value: 'name', label: 'Name' },
   { value: 'launches', label: 'Most Used' },
   { value: 'recent', label: 'Recently Added' },
-  { value: 'pinned', label: 'Pinned First' },
 ]
 
 export default function Apps() {
-  const { apps, updateApp } = useStore()
+  const apps = useStore(state => state.apps)
+  const updateApp = useStore(state => state.updateApp)
 
   const [showModal, setShowModal] = useState(false)
   const [search, setSearch] = useState('')
@@ -32,6 +32,7 @@ const [selectedApp, setSelectedApp] = useState(null)
 
   const [openSort, setOpenSort] = useState(false)
   const sortRef = useRef(null)
+  const openModifyApp = useCallback((app) => setSelectedApp(app), [])
 
   /* 🔥 SAVE TO localStorage */
   useEffect(() => {
@@ -88,10 +89,6 @@ const [selectedApp, setSelectedApp] = useState(null)
     }
 
     list.sort((a, b) => {
-      if (a.pinned !== b.pinned) {
-        return b.pinned ? 1 : -1
-      }
-
       switch (sort) {
         case 'name':
           return (a.name || '').localeCompare(b.name || '')
@@ -101,9 +98,6 @@ const [selectedApp, setSelectedApp] = useState(null)
 
         case 'recent':
           return (b.addedAt || 0) - (a.addedAt || 0)
-
-        case 'pinned':
-          return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)
 
         default:
           return 0
@@ -124,252 +118,641 @@ const [selectedApp, setSelectedApp] = useState(null)
 
       {/* EVERYTHING BELOW UNTOUCHED */}
 
-      {/* 🔥 FLOATING COMMAND BAR (IDENTICAL TO GAMES) */}
+{/* 🔥 FLOATING COMMAND BAR (ULTRA PREMIUM GLASS) */}
+<div style={{
+  position: 'relative',
+  padding: '12px 18px',
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: 10,
+  overflow: 'visible',
+
+  backdropFilter: 'blur(20px) saturate(150%)',
+  WebkitBackdropFilter: 'blur(20px) saturate(150%)',
+
+  background: `
+    linear-gradient(
+      135deg,
+      rgba(18,20,34,0.62),
+      rgba(10,12,22,0.48)
+    )
+  `,
+
+  borderBottom: '1px solid rgba(255,255,255,0.05)',
+
+  boxShadow: `
+    0 10px 45px rgba(0,0,0,0.45),
+    inset 0 1px 0 rgba(255,255,255,0.06)
+  `,
+
+  zIndex: 20
+}}>
+
+  {/* PREMIUM AMBIENT GLOWS */}
+  <div style={{
+    position: 'absolute',
+    inset: 0,
+    overflow: 'hidden',
+    pointerEvents: 'none'
+  }}>
+    <div style={{
+      position: 'absolute',
+      width: 260,
+      height: 260,
+      top: -130,
+      left: -70,
+      borderRadius: '50%',
+      background:
+        'radial-gradient(circle, rgba(91,140,255,0.22), transparent 72%)',
+      filter: 'blur(24px)'
+    }} />
+
+    <div style={{
+      position: 'absolute',
+      width: 280,
+      height: 280,
+      top: -150,
+      right: -80,
+      borderRadius: '50%',
+      background:
+        'radial-gradient(circle, rgba(139,92,246,0.20), transparent 72%)',
+      filter: 'blur(24px)'
+    }} />
+
+    <div style={{
+      position: 'absolute',
+      inset: 0,
+      background: `
+        linear-gradient(
+          90deg,
+          transparent,
+          rgba(255,255,255,0.025),
+          transparent
+        )
+      `
+    }} />
+  </div>
+
+  {/* TITLE */}
+  <div style={{
+    position: 'relative',
+    zIndex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 11
+  }}>
+    <div style={{
+      width: 34,
+      height: 34,
+      borderRadius: 13,
+
+      background: `
+        linear-gradient(
+          135deg,
+          rgba(91,140,255,0.96),
+          rgba(139,92,246,0.96)
+        )
+      `,
+
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+
+      boxShadow: `
+        0 10px 28px rgba(91,140,255,0.25),
+        0 0 34px rgba(139,92,246,0.18),
+        inset 0 1px 0 rgba(255,255,255,0.22)
+      `
+    }}>
+      <LayoutGrid size={16} color="#fff" />
+    </div>
+
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 1
+    }}>
       <div style={{
-        padding: '16px 20px',
-        display: 'flex',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: 12,
-        backdropFilter: 'blur(16px)',
-        background: 'linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01))',
-        borderBottom: '1px solid var(--border-subtle)',
-        boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
-        zIndex: 10
+        fontFamily: 'var(--font-display)',
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: '0.18em',
+
+        background:
+          'linear-gradient(90deg, #ffffff, #d7c4ff)',
+
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent'
       }}>
-
-        {/* TITLE */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 36,
-            height: 36,
-            borderRadius: 12,
-            background: 'linear-gradient(135deg, #5b8cff, #8b5cf6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 8px 24px rgba(139,92,246,0.4)'
-          }}>
-            <LayoutGrid size={18} color="#fff" />
-          </div>
-
-          <div>
-            <div style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 14,
-              letterSpacing: '0.12em'
-            }}>
-              APPS LIBRARY
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-              {apps.length} apps available
-            </div>
-          </div>
-        </div>
-
-        {/* SEARCH */}
-        <div style={{
-          position: 'relative',
-          flex: 1,
-          minWidth: 200,
-          maxWidth: 300
-        }}>
-          <Search size={14} style={{
-            position: 'absolute',
-            left: 14,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--text-muted)'
-          }} />
-
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search your apps..."
-            style={{
-              width: '100%',
-              padding: '10px 14px 10px 36px',
-              borderRadius: 12,
-              border: '1px solid var(--border-dim)',
-              background: 'rgba(255,255,255,0.03)',
-              color: 'var(--text-primary)',
-              fontSize: 13,
-              outline: 'none',
-              transition: 'all 0.25s ease'
-            }}
-          />
-        </div>
-
-        {/* ✅ SORT (UNCHANGED UI) */}
-        <div ref={sortRef} style={{ position: 'relative', minWidth: 160 }}>
-          <div
-            onClick={() => setOpenSort(o => !o)}
-            style={{
-              padding: '9px 12px',
-              borderRadius: 12,
-              border: '1px solid var(--border-dim)',
-              background: 'linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))',
-              color: 'var(--text-secondary)',
-              fontSize: 12,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              backdropFilter: 'blur(10px)',
-              transition: 'all 0.25s ease'
-            }}
-          >
-            {SORTS.find(s => s.value === sort)?.label}
-            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>▼</span>
-          </div>
-
-          {openSort && (
-            <div style={{
-              position: 'absolute',
-              top: '110%',
-              left: 0,
-              width: '100%',
-              borderRadius: 14,
-              overflow: 'hidden',
-              border: '1px solid var(--border-dim)',
-              background: 'linear-gradient(145deg, rgba(20,20,30,0.95), rgba(15,15,25,0.95))',
-              backdropFilter: 'blur(18px)',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
-              zIndex: 50
-            }}>
-              {SORTS.map(s => (
-                <div
-                  key={s.value}
-                  onClick={() => {
-                    setSort(s.value)
-                    setOpenSort(false)
-                  }}
-                  style={{
-                    padding: '10px 14px',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    color: sort === s.value ? '#c4b5fd' : 'var(--text-secondary)',
-                    background: sort === s.value
-                      ? 'linear-gradient(135deg, #5b8cff22, #8b5cf622)'
-                      : 'transparent'
-                  }}
-                >
-                  {s.label}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* FILTER BUTTON */}
-        <button
-          onClick={() => setShowFilters(f => !f)}
-          style={{
-            padding: '9px 12px',
-            borderRadius: 12,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            border: '1px solid var(--border-dim)',
-            background: showFilters
-              ? 'linear-gradient(135deg, #5b8cff22, #8b5cf622)'
-              : 'rgba(255,255,255,0.03)',
-            color: showFilters ? '#c4b5fd' : 'var(--text-muted)',
-            cursor: 'pointer'
-          }}
-        >
-          <SlidersHorizontal size={14} /> Filters
-        </button>
-
-        {/* VIEW */}
-        <div style={{
-          display: 'flex',
-          borderRadius: 12,
-          overflow: 'hidden',
-          border: '1px solid var(--border-dim)'
-        }}>
-          {[{ v: 'grid', icon: <Grid3X3 size={14} /> }, { v: 'list', icon: <List size={14} /> }].map(({ v, icon }) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              style={{
-                padding: '8px 10px',
-                border: 'none',
-                cursor: 'pointer',
-                background: view === v
-                  ? 'linear-gradient(135deg, #5b8cff33, #8b5cf633)'
-                  : 'transparent',
-                color: view === v ? '#c4b5fd' : 'var(--text-muted)'
-              }}
-            >
-              {icon}
-            </button>
-          ))}
-        </div>
-
-        {/* ADD */}
-        <button
-          onClick={() => setShowModal(true)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '9px 14px',
-            borderRadius: 12,
-            background: 'linear-gradient(135deg, #5b8cff, #8b5cf6)',
-            border: 'none',
-            color: '#fff',
-            fontWeight: 600,
-            cursor: 'pointer',
-            boxShadow: '0 10px 30px rgba(139,92,246,0.5)'
-          }}
-        >
-          <Plus size={14} /> Add App
-        </button>
+        APPS LIBRARY
       </div>
 
-      {/* FILTER PILLS (UNCHANGED) */}
-      {showFilters && (
-        <div style={{
-          padding: '10px 20px',
-          display: 'flex',
-          gap: 8,
-          overflowX: 'auto',
-          borderBottom: '1px solid var(--border-subtle)'
-        }}>
-          {CATEGORIES.map(c => (
-            <button
-              key={c}
-              onClick={() => setCategory(c)}
-              style={{
-                padding: '7px 16px',
-                borderRadius: 999,
-                whiteSpace: 'nowrap',
-                cursor: 'pointer',
-                border: '1px solid var(--border-dim)',
-                background: category === c
-                  ? 'linear-gradient(135deg, #5b8cff22, #8b5cf622)'
-                  : 'rgba(255,255,255,0.02)',
-                color: category === c ? '#c4b5fd' : 'var(--text-secondary)'
-              }}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-      )}
+      <div style={{
+        fontSize: 10,
+        fontWeight: 500,
+        color: 'rgba(255,255,255,0.42)'
+      }}>
+        {apps.length} apps available
+      </div>
+    </div>
+  </div>
+
+  {/* SEARCH */}
+  <div style={{
+    position: 'relative',
+    flex: 1,
+    minWidth: 190,
+    maxWidth: 280,
+    zIndex: 1
+  }}>
+    <Search
+      size={13}
+      style={{
+        position: 'absolute',
+        left: 12,
+        top: '50%',
+        transform: 'translateY(-50%)',
+        color: 'rgba(255,255,255,0.36)',
+        pointerEvents: 'none'
+      }}
+    />
+
+    <input
+      value={search}
+      onChange={e => setSearch(e.target.value)}
+      placeholder="Search your apps..."
+      style={{
+        width: '100%',
+        height: 38,
+        padding: '0 14px 0 34px',
+        borderRadius: 13,
+
+        border: '1px solid rgba(255,255,255,0.06)',
+
+        background: `
+          linear-gradient(
+            135deg,
+            rgba(255,255,255,0.055),
+            rgba(255,255,255,0.02)
+          )
+        `,
+
+        color: 'rgba(255,255,255,0.92)',
+        fontSize: 12,
+        fontWeight: 500,
+
+        outline: 'none',
+
+        transition: 'all 0.22s ease',
+
+        backdropFilter: 'blur(16px)',
+
+        boxShadow: `
+          inset 0 1px 0 rgba(255,255,255,0.05),
+          0 4px 18px rgba(0,0,0,0.18)
+        `
+      }}
+      onFocus={e => {
+        e.target.style.border =
+          '1px solid rgba(139,92,246,0.28)'
+
+        e.target.style.boxShadow =
+          '0 0 0 4px rgba(139,92,246,0.08)'
+      }}
+      onBlur={e => {
+        e.target.style.border =
+          '1px solid rgba(255,255,255,0.06)'
+
+        e.target.style.boxShadow =
+          'inset 0 1px 0 rgba(255,255,255,0.05), 0 4px 18px rgba(0,0,0,0.18)'
+      }}
+    />
+  </div>
+
+  {/* SORT */}
+  <div
+    ref={sortRef}
+    style={{
+      position: 'relative',
+      minWidth: 150,
+      zIndex: 100
+    }}
+  >
+    <div
+      onClick={() => setOpenSort(o => !o)}
+      style={{
+        height: 38,
+        padding: '0 13px',
+        borderRadius: 13,
+
+        border: '1px solid rgba(255,255,255,0.06)',
+
+        background: `
+          linear-gradient(
+            135deg,
+            rgba(255,255,255,0.05),
+            rgba(255,255,255,0.02)
+          )
+        `,
+
+        color: 'rgba(255,255,255,0.82)',
+        fontSize: 11.5,
+        fontWeight: 500,
+
+        cursor: 'pointer',
+
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+
+        backdropFilter: 'blur(16px)',
+
+        transition: 'all 0.22s ease',
+
+        boxShadow: `
+          inset 0 1px 0 rgba(255,255,255,0.05),
+          0 4px 18px rgba(0,0,0,0.18)
+        `
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.transform = 'translateY(-1px)'
+        e.currentTarget.style.border =
+          '1px solid rgba(139,92,246,0.22)'
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.transform = 'translateY(0px)'
+        e.currentTarget.style.border =
+          '1px solid rgba(255,255,255,0.06)'
+      }}
+    >
+      {SORTS.find(s => s.value === sort)?.label}
+
+      <span style={{
+        fontSize: 9,
+        color: '#c4b5fd'
+      }}>
+        ▼
+      </span>
+    </div>
+
+    {openSort && (
+      <div style={{
+        position: 'absolute',
+        top: '115%',
+        left: 0,
+        width: '100%',
+
+        borderRadius: 16,
+        overflow: 'hidden',
+
+        border: '1px solid rgba(255,255,255,0.06)',
+
+        background: `
+          linear-gradient(
+            180deg,
+            rgba(20,22,36,0.94),
+            rgba(10,12,22,0.94)
+          )
+        `,
+
+        backdropFilter: 'blur(28px)',
+
+        boxShadow: `
+          0 18px 50px rgba(0,0,0,0.55),
+          0 0 30px rgba(139,92,246,0.08)
+        `,
+
+        zIndex: 999
+      }}>
+        {SORTS.map(s => (
+          <div
+            key={s.value}
+            onClick={() => {
+              setSort(s.value)
+              setOpenSort(false)
+            }}
+            style={{
+              padding: '10px 14px',
+              fontSize: 11.5,
+              fontWeight: 500,
+              cursor: 'pointer',
+
+              color:
+                sort === s.value
+                  ? '#e2d6ff'
+                  : 'rgba(255,255,255,0.74)',
+
+              background:
+                sort === s.value
+                  ? 'linear-gradient(90deg, rgba(91,140,255,0.12), rgba(139,92,246,0.14))'
+                  : 'transparent',
+
+              transition: 'all 0.18s ease'
+            }}
+            onMouseEnter={e => {
+              if (sort !== s.value) {
+                e.currentTarget.style.background =
+                  'rgba(255,255,255,0.045)'
+              }
+            }}
+            onMouseLeave={e => {
+              if (sort !== s.value) {
+                e.currentTarget.style.background = 'transparent'
+              }
+            }}
+          >
+            {s.label}
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+
+  {/* FILTER BUTTON */}
+  <button
+    onClick={() => setShowFilters(f => !f)}
+    style={{
+      position: 'relative',
+      zIndex: 1,
+
+      height: 38,
+      padding: '0 13px',
+      borderRadius: 13,
+
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+
+      border: '1px solid rgba(255,255,255,0.06)',
+
+      background: showFilters
+        ? 'linear-gradient(135deg, rgba(91,140,255,0.14), rgba(139,92,246,0.14))'
+        : 'linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))',
+
+      color: showFilters
+        ? '#d9cbff'
+        : 'rgba(255,255,255,0.6)',
+
+      cursor: 'pointer',
+
+      fontSize: 11.5,
+      fontWeight: 500,
+
+      backdropFilter: 'blur(16px)',
+
+      transition: 'all 0.22s ease',
+
+      boxShadow: `
+        inset 0 1px 0 rgba(255,255,255,0.05),
+        0 4px 18px rgba(0,0,0,0.18)
+      `
+    }}
+    onMouseEnter={e => {
+      e.currentTarget.style.transform = 'translateY(-1px)'
+      e.currentTarget.style.border =
+        '1px solid rgba(139,92,246,0.22)'
+    }}
+    onMouseLeave={e => {
+      e.currentTarget.style.transform = 'translateY(0px)'
+      e.currentTarget.style.border =
+        '1px solid rgba(255,255,255,0.06)'
+    }}
+  >
+    <SlidersHorizontal size={13} />
+    Filters
+  </button>
+
+  {/* VIEW */}
+  <div style={{
+    position: 'relative',
+    zIndex: 1,
+
+    display: 'flex',
+
+    borderRadius: 13,
+    overflow: 'hidden',
+
+    border: '1px solid rgba(255,255,255,0.06)',
+
+    background: `
+      linear-gradient(
+        135deg,
+        rgba(255,255,255,0.05),
+        rgba(255,255,255,0.02)
+      )
+    `,
+
+    backdropFilter: 'blur(16px)',
+
+    height: 38,
+
+    boxShadow: `
+      inset 0 1px 0 rgba(255,255,255,0.05),
+      0 4px 18px rgba(0,0,0,0.18)
+    `
+  }}>
+    {[
+      { v: 'grid', icon: <Grid3X3 size={13} /> },
+      { v: 'list', icon: <List size={13} /> }
+    ].map(({ v, icon }) => (
+      <button
+        key={v}
+        onClick={() => setView(v)}
+        style={{
+          width: 40,
+          border: 'none',
+          cursor: 'pointer',
+
+          background:
+            view === v
+              ? 'linear-gradient(135deg, rgba(91,140,255,0.16), rgba(139,92,246,0.16))'
+              : 'transparent',
+
+          color:
+            view === v
+              ? '#d9cbff'
+              : 'rgba(255,255,255,0.5)',
+
+          transition: 'all 0.22s ease'
+        }}
+      >
+        {icon}
+      </button>
+    ))}
+  </div>
+
+  {/* ADD */}
+  <button
+    onClick={() => setShowModal(true)}
+    style={{
+      position: 'relative',
+      zIndex: 1,
+
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+
+      height: 38,
+      padding: '0 15px',
+
+      borderRadius: 13,
+
+      background: `
+        linear-gradient(
+          135deg,
+          #5b8cff,
+          #8b5cf6
+        )
+      `,
+
+      border: '1px solid rgba(255,255,255,0.08)',
+
+      color: '#fff',
+      fontWeight: 600,
+      fontSize: 11.5,
+
+      cursor: 'pointer',
+
+      boxShadow: `
+        0 10px 28px rgba(91,140,255,0.24),
+        0 0 28px rgba(139,92,246,0.14),
+        inset 0 1px 0 rgba(255,255,255,0.18)
+      `,
+
+      transition: 'all 0.22s ease'
+    }}
+    onMouseEnter={e => {
+      e.currentTarget.style.transform =
+        'translateY(-1px) scale(1.01)'
+    }}
+    onMouseLeave={e => {
+      e.currentTarget.style.transform =
+        'translateY(0px) scale(1)'
+    }}
+  >
+    <Plus size={13} />
+    Add App
+  </button>
+</div>
+
+{/* 🔥 PREMIUM FILTER PILLS */}
+{showFilters && (
+  <div style={{
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+
+    padding: '10px 16px 12px',
+
+    overflowX: 'auto',
+    overflowY: 'hidden',
+
+    background: `
+      linear-gradient(
+        180deg,
+        rgba(255,255,255,0.025),
+        rgba(255,255,255,0.01)
+      )
+    `,
+
+    backdropFilter: 'blur(14px)',
+
+    borderBottom: '1px solid rgba(255,255,255,0.04)',
+
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)'
+  }}>
+    {CATEGORIES.map(c => (
+      <button
+        key={c}
+        onClick={() => setCategory(c)}
+        style={{
+          height: 31,
+          padding: '0 14px',
+
+          borderRadius: 999,
+
+          whiteSpace: 'nowrap',
+
+          cursor: 'pointer',
+
+          border:
+            category === c
+              ? '1px solid rgba(139,92,246,0.20)'
+              : '1px solid rgba(255,255,255,0.05)',
+
+          background:
+            category === c
+              ? `
+                linear-gradient(
+                  135deg,
+                  rgba(91,140,255,0.16),
+                  rgba(139,92,246,0.18)
+                )
+              `
+              : `
+                linear-gradient(
+                  135deg,
+                  rgba(255,255,255,0.045),
+                  rgba(255,255,255,0.015)
+                )
+              `,
+
+          color:
+            category === c
+              ? '#e2d6ff'
+              : 'rgba(255,255,255,0.62)',
+
+          fontSize: 11,
+          fontWeight: 500,
+
+          backdropFilter: 'blur(14px)',
+
+          boxShadow:
+            category === c
+              ? `
+                0 4px 18px rgba(139,92,246,0.14),
+                inset 0 1px 0 rgba(255,255,255,0.06)
+              `
+              : `
+                inset 0 1px 0 rgba(255,255,255,0.04)
+              `,
+
+          transition: 'all 0.22s ease'
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.transform = 'translateY(-1px)'
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.transform = 'translateY(0px)'
+        }}
+      >
+        {c}
+      </button>
+    ))}
+  </div>
+)}
 
       {/* CONTENT */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
         {filtered.length === 0 ? (
           <EmptyState search={search} onAdd={() => setShowModal(true)} />
         ) : view === 'grid' ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 14 }}>
-            {filtered.map(app => <AppCard key={app.id} app={app} view="grid" onModifyApp={setSelectedApp} />)}
+          <div
+  style={{
+    display: 'grid',
+
+gridTemplateColumns: 'repeat(auto-fill, 170px)',
+    justifyContent: 'start',
+    alignItems: 'start',
+    gap: 14
+  }}
+>
+            {filtered.map(app => <AppCard key={app.id} app={app} view="grid" onModifyApp={openModifyApp} />)}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {filtered.map(app => <AppCard key={app.id} app={app} view="list" onModifyApp={setSelectedApp} />)}
+            {filtered.map(app => <AppCard key={app.id} app={app} view="list" onModifyApp={openModifyApp} />)}
           </div>
         )}
       </div>

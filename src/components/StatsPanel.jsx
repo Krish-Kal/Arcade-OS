@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Gamepad2, Grid3X3, TrendingUp,
   Activity, Sparkles
@@ -8,7 +8,9 @@ import { useStore } from '../store/useStore'
 const isElectron = typeof window !== 'undefined' && window.arcadeOS
 
 export default function StatsPanel() {
-  const { games, apps, recentLaunches } = useStore()
+  const games = useStore(state => state.games)
+  const apps = useStore(state => state.apps)
+  const recentLaunches = useStore(state => state.recentLaunches)
 
   const [sys, setSys] = useState(null)
   const [cpu, setCpu] = useState(0)
@@ -53,7 +55,7 @@ export default function StatsPanel() {
     }
 
     fetch()
-    const interval = setInterval(fetch, 300)
+    const interval = setInterval(fetch, 1500)
 
     return () => {
       alive = false
@@ -61,11 +63,15 @@ export default function StatsPanel() {
     }
   }, [])
 
-  const totalLaunches = [...games, ...apps]
-    .reduce((s, i) => s + (i.launchCount || 0), 0)
+  const totalLaunches = useMemo(
+    () => [...games, ...apps].reduce((s, i) => s + (i.launchCount || 0), 0),
+    [games, apps]
+  )
 
-  const topGame = [...games]
-    .sort((a, b) => (b.launchCount || 0) - (a.launchCount || 0))[0]
+  const topGame = useMemo(
+    () => [...games].sort((a, b) => (b.launchCount || 0) - (a.launchCount || 0))[0],
+    [games]
+  )
 
   const memPct = sys?.memory?.total
     ? (sys.memory.used / sys.memory.total) * 100
@@ -77,12 +83,12 @@ export default function StatsPanel() {
 
   const pressure = cpu * 0.85 + memPct * 0.15
   
-  const stats = [
+  const stats = useMemo(() => [
     { icon: <Gamepad2 size={16} />, label: 'Games', value: games.length, color: '#7C6CF2' },
     { icon: <Grid3X3 size={16} />, label: 'Apps', value: apps.length, color: '#38BDF8' },
     { icon: <TrendingUp size={16} />, label: 'Launches', value: totalLaunches, color: '#34D399' },
     { icon: <Activity size={16} />, label: 'Sessions', value: recentLaunches.length, color: '#F472B6' }
-  ]
+  ], [games.length, apps.length, totalLaunches, recentLaunches.length])
 
   return (
     <div style={styles.wrapper}>

@@ -14,7 +14,6 @@ export function sortApps(apps, sortBy = 'launches') {
     case 'name': return list.sort((a, b) => a.name.localeCompare(b.name))
     case 'launches': return list.sort((a, b) => b.launchCount - a.launchCount)
     case 'recent': return list.sort((a, b) => b.addedAt - a.addedAt)
-    case 'pinned': return list.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
     default: return list
   }
 }

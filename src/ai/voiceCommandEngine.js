@@ -345,13 +345,9 @@ export function parseVoiceCommand(rawText, context = {}) {
 
 export function getCommandSuggestions({ apps = [], games = [], commandHistory = [] }) {
   const recentCommands = commandHistory.slice(0, 2).map(item => item.text)
-  const pinnedApps = apps.filter(app => app.pinned).slice(0, 2).map(app => `Open ${app.name}`)
-  const pinnedGames = games.filter(game => game.pinned).slice(0, 2).map(game => `Launch ${game.name}`)
 
   const suggestions = [
     ...recentCommands,
-    ...pinnedApps,
-    ...pinnedGames,
     'Open YouTube in Google Chrome',
     'Open YouTube on Edge',
     'Open NotebookLM in Chrome',

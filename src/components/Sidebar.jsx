@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useCallback } from 'react'
 import {
   Home,
   Gamepad2,
@@ -7,8 +7,7 @@ import {
   Folder,
   Settings,
   ChevronLeft,
-  ChevronRight,
-  Pin
+  ChevronRight
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 
@@ -25,21 +24,14 @@ const BOTTOM_ITEMS = [
 ]
 
 export default function Sidebar() {
-  const {
-    activePage,
-    setActivePage,
-    sidebarCollapsed,
-    toggleSidebar,
-    games,
-    apps
-  } = useStore()
+  const activePage = useStore(state => state.activePage)
+  const setActivePage = useStore(state => state.setActivePage)
+  const sidebarCollapsed = useStore(state => state.sidebarCollapsed)
+  const toggleSidebar = useStore(state => state.toggleSidebar)
 
   const width = sidebarCollapsed
     ? 'var(--sidebar-collapsed)'
     : 'var(--sidebar-width)'
-
-  const pinnedGames = games.filter(g => g.pinned).slice(0, 3)
-  const pinnedApps = apps.filter(a => a.pinned).slice(0, 2)
 
   return (
     <aside style={{
@@ -90,97 +82,10 @@ export default function Sidebar() {
             item={item}
             active={activePage === item.id}
             collapsed={sidebarCollapsed}
-            onClick={() => setActivePage(item.id)}
+            setActivePage={setActivePage}
           />
         ))}
 
-        {/* PINNED SECTION */}
-        {!sidebarCollapsed && (pinnedGames.length > 0 || pinnedApps.length > 0) && (
-          <div style={{
-            marginTop: 18,
-            paddingTop: 12,
-            borderTop: '1px solid rgba(255,255,255,0.06)',
-          }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '0 10px',
-              marginBottom: 10,
-
-              fontSize: 10,
-              letterSpacing: '0.16em',
-              textTransform: 'uppercase',
-              color: 'rgba(255,255,255,0.35)',
-            }}>
-              <Pin size={10} />
-              <span>Pinned Vault</span>
-            </div>
-
-            {[...pinnedGames, ...pinnedApps].map(item => (
-              <div
-                key={item.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '8px 10px',
-                  borderRadius: 14,
-                  cursor: 'pointer',
-                  transition: 'all 0.25s ease',
-                  color: 'rgba(255,255,255,0.7)',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background =
-                    'linear-gradient(90deg, rgba(139,92,246,0.12), rgba(99,102,241,0.08))'
-                  e.currentTarget.style.transform = 'translateX(3px)'
-                  e.currentTarget.style.boxShadow =
-                    '0 8px 20px rgba(0,0,0,0.25)'
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = 'transparent'
-                  e.currentTarget.style.transform = 'translateX(0px)'
-                  e.currentTarget.style.boxShadow = 'none'
-                }}
-              >
-                <div style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 10,
-
-                  background: `
-                    linear-gradient(135deg,
-                      rgba(139,92,246,0.9),
-                      rgba(99,102,241,0.75)
-                    )
-                  `,
-
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: '#fff',
-
-                  boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-                }}>
-                  {item.name[0]}
-                </div>
-
-                <span style={{
-                  fontFamily: 'var(--font-body)',
-                  fontSize: 13,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}>
-                  {item.name}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
       </nav>
 
       {/* BOTTOM */}
@@ -195,7 +100,7 @@ export default function Sidebar() {
             item={item}
             active={activePage === item.id}
             collapsed={sidebarCollapsed}
-            onClick={() => setActivePage(item.id)}
+            setActivePage={setActivePage}
           />
         ))}
 
@@ -252,8 +157,9 @@ export default function Sidebar() {
 /* =========================
    NAV ITEM - PREMIUM GLASS
 ========================= */
-function NavItem({ item, active, collapsed, onClick }) {
+const NavItem = React.memo(function NavItem({ item, active, collapsed, setActivePage }) {
   const Icon = item.icon
+  const onClick = useCallback(() => setActivePage(item.id), [item.id, setActivePage])
 
   return (
     <button
@@ -324,4 +230,4 @@ function NavItem({ item, active, collapsed, onClick }) {
       )}
     </button>
   )
-}
+})

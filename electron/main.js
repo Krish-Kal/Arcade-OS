@@ -23,7 +23,7 @@ const fs   = require('fs')
 const os   = require('os')
 const si   = require('systeminformation')
 
-const isDev    = process.env.NODE_ENV !== 'production'
+const isDev = !app.isPackaged
 const dataPath = path.join(app.getPath('userData'), 'arcade-os-data.json')
 
 let mainWindow = null
@@ -38,7 +38,9 @@ function iconPath() {
 function createTray() {
   if (tray) return
 
-  const icon = nativeImage.createFromPath(iconPath())
+  const icon = nativeImage.createFromPath(
+  path.join(__dirname, '../public/icons/icon.ico')
+)
   tray = new Tray(
     icon.isEmpty() ? nativeImage.createEmpty() : icon.resize({ width: 16, height: 16 })
   )
@@ -152,7 +154,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
-    icon: iconPath(),
+    icon: path.join(__dirname, '../public/icons/icon.ico'),
   })
 
   mainWindow = win
@@ -203,6 +205,27 @@ function createWindow() {
   })
 
   /* ── IPC: Window controls ────────────────────────────────── */
+  ipcMain.handle('fs:getFileIcon', async (_, filePath) => {
+    try {
+      if (!filePath || !fs.existsSync(filePath)) return null
+      const icon = await app.getFileIcon(filePath, { size: 'normal' })
+      return icon?.isEmpty?.() ? null : icon.toDataURL()
+    } catch (err) {
+      console.error('getFileIcon failed:', err.message)
+      return null
+    }
+  })
+
+  ipcMain.handle('fs:readFileBuffer', async (_, filePath) => {
+    try {
+      if (!filePath || !fs.existsSync(filePath)) return null
+      return fs.readFileSync(filePath)
+    } catch (err) {
+      console.error('readFileBuffer failed:', err.message)
+      return null
+    }
+  })
+
   ipcMain.handle('window:minimize',        () => win.minimize())
   ipcMain.handle('window:maximize',        () => {
     if (win.isMaximized()) win.unmaximize()
@@ -226,7 +249,7 @@ function loadData() {
       return JSON.parse(fs.readFileSync(dataPath, 'utf-8'))
     }
   } catch (e) {}
-  return { games: [], apps: [], settings: {}, launchCounts: {}, pinned: [] }
+  return { games: [], apps: [], settings: {}, launchCounts: {} }
 }
 
 function saveData(data) {
@@ -247,6 +270,108 @@ function knownFolder(location) {
   if (key === 'desktop')                     return path.join(home, 'Desktop')
   if (key === 'downloads' || key === 'download') return path.join(home, 'Downloads')
   return path.join(home, 'Documents')
+}
+
+function normalizeFsPath(targetPath) {
+  return path.resolve(String(targetPath || ''))
+}
+
+function getEntryPayload(fullPath) {
+  const stat = fs.statSync(fullPath)
+  return {
+    name: path.basename(fullPath),
+    isDirectory: stat.isDirectory(),
+    path: fullPath,
+    size: stat.isFile() ? stat.size : 0,
+    ext: path.extname(fullPath).toLowerCase(),
+    created: stat.birthtimeMs || stat.ctimeMs || Date.now(),
+    modified: stat.mtimeMs || Date.now(),
+  }
+}
+
+function pathWithin(parentPath, candidatePath) {
+  const parent = normalizeFsPath(parentPath)
+  const candidate = normalizeFsPath(candidatePath)
+  return candidate === parent || candidate.startsWith(`${parent}${path.sep}`)
+}
+
+function splitNameParts(name) {
+  const ext = path.extname(name)
+  return {
+    ext,
+    base: ext ? name.slice(0, -ext.length) : name,
+  }
+}
+
+function makeUniquePath(targetPath, { copyStyle = false } = {}) {
+  if (!fs.existsSync(targetPath)) return targetPath
+
+  const dir = path.dirname(targetPath)
+  const { name } = path.parse(targetPath)
+  const ext = path.extname(targetPath)
+  let index = 1
+
+  while (true) {
+    const candidateName = copyStyle
+      ? index === 1
+        ? `${name} copy${ext}`
+        : `${name} copy ${index}${ext}`
+      : index === 1
+        ? `${name} (${index})${ext}`
+        : `${name} (${index})${ext}`
+    const candidatePath = path.join(dir, candidateName)
+    if (!fs.existsSync(candidatePath)) return candidatePath
+    index += 1
+  }
+}
+
+function copyPathRecursive(sourcePath, targetPath) {
+  const stat = fs.statSync(sourcePath)
+  if (stat.isDirectory()) {
+    fs.mkdirSync(targetPath, { recursive: true })
+    for (const child of fs.readdirSync(sourcePath)) {
+      copyPathRecursive(path.join(sourcePath, child), path.join(targetPath, child))
+    }
+    return
+  }
+  fs.copyFileSync(sourcePath, targetPath)
+}
+
+function movePathRecursive(sourcePath, targetPath) {
+  try {
+    fs.renameSync(sourcePath, targetPath)
+  } catch (err) {
+    if (err.code !== 'EXDEV') throw err
+    copyPathRecursive(sourcePath, targetPath)
+    fs.rmSync(sourcePath, { recursive: true, force: true })
+  }
+}
+
+function remapFolderIconPaths(oldPath, newPath) {
+  const icons = folderIconStore.get('icons', {})
+  const next = {}
+
+  for (const [iconPath, iconValue] of Object.entries(icons)) {
+    if (pathWithin(oldPath, iconPath)) {
+      const suffix = iconPath.slice(normalizeFsPath(oldPath).length)
+      next[`${normalizeFsPath(newPath)}${suffix}`] = iconValue
+    } else {
+      next[iconPath] = iconValue
+    }
+  }
+
+  folderIconStore.set('icons', next)
+}
+
+function removeFolderIconPaths(targetPath) {
+  const icons = folderIconStore.get('icons', {})
+  const next = {}
+
+  for (const [iconPath, iconValue] of Object.entries(icons)) {
+    if (!pathWithin(targetPath, iconPath)) next[iconPath] = iconValue
+  }
+
+  folderIconStore.set('icons', next)
 }
 
 /* ── Browser candidates ──────────────────────────────────────── */
@@ -532,6 +657,8 @@ ipcMain.handle('fs:readDir', async (_, dirPath) => {
           path:        fullPath,
           size:        stat.isFile() ? stat.size : 0,
           ext:         path.extname(e.name).toLowerCase(),
+          created:     stat.birthtimeMs || stat.ctimeMs || Date.now(),
+          modified:    stat.mtimeMs || Date.now(),
         })
       } catch (err) {
         console.warn('Skipped file:', e.name, err.message)
@@ -541,6 +668,141 @@ ipcMain.handle('fs:readDir', async (_, dirPath) => {
   } catch (err) {
     console.error('readDir FAILED:', dirPath, err.message)
     return []
+  }
+})
+
+ipcMain.handle('fs:renamePath', async (_, targetPath, nextName) => {
+  try {
+    const sourcePath = normalizeFsPath(targetPath)
+    if (!fs.existsSync(sourcePath)) return { success: false, error: 'Path not found' }
+
+    const sourceStat = fs.statSync(sourcePath)
+    const currentName = path.basename(sourcePath)
+    const safeNextName = safeName(nextName)
+    if (!safeNextName) return { success: false, error: 'Invalid name' }
+
+    let finalName = safeNextName
+    if (!sourceStat.isDirectory()) {
+      const currentParts = splitNameParts(currentName)
+      const requestedParts = splitNameParts(safeNextName)
+      finalName = requestedParts.ext ? safeNextName : `${safeNextName}${currentParts.ext}`
+    }
+
+    if (finalName === currentName) {
+      return { success: true, path: sourcePath, isDirectory: sourceStat.isDirectory(), entry: getEntryPayload(sourcePath) }
+    }
+
+    const destinationPath = path.join(path.dirname(sourcePath), finalName)
+    if (fs.existsSync(destinationPath)) return { success: false, error: 'An item with that name already exists' }
+
+    fs.renameSync(sourcePath, destinationPath)
+    if (sourceStat.isDirectory()) remapFolderIconPaths(sourcePath, destinationPath)
+
+    return {
+      success: true,
+      oldPath: sourcePath,
+      path: destinationPath,
+      isDirectory: sourceStat.isDirectory(),
+      entry: getEntryPayload(destinationPath),
+    }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('fs:deletePath', async (_, targetPath) => {
+  try {
+    const normalizedPath = normalizeFsPath(targetPath)
+    if (!fs.existsSync(normalizedPath)) return { success: true, path: normalizedPath }
+
+    const stat = fs.statSync(normalizedPath)
+    fs.rmSync(normalizedPath, { recursive: true, force: true })
+    if (stat.isDirectory()) removeFolderIconPaths(normalizedPath)
+
+    return { success: true, path: normalizedPath, isDirectory: stat.isDirectory() }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('fs:createFolder', async (_, parentPath, rawName) => {
+  try {
+    const parent = normalizeFsPath(parentPath)
+    if (!fs.existsSync(parent)) return { success: false, error: 'Parent folder not found' }
+    const folderName = safeName(rawName || 'New Folder')
+    if (!folderName) return { success: false, error: 'Invalid folder name' }
+
+    const targetPath = makeUniquePath(path.join(parent, folderName))
+    fs.mkdirSync(targetPath, { recursive: true })
+
+    return { success: true, path: targetPath, isDirectory: true, entry: getEntryPayload(targetPath) }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('fs:createFile', async (_, parentPath, rawName, contents = '') => {
+  try {
+    const parent = normalizeFsPath(parentPath)
+    if (!fs.existsSync(parent)) return { success: false, error: 'Parent folder not found' }
+    const fileName = safeName(rawName || 'New File.txt')
+    if (!fileName) return { success: false, error: 'Invalid file name' }
+
+    const targetPath = makeUniquePath(path.join(parent, fileName))
+    fs.writeFileSync(targetPath, String(contents), 'utf8')
+
+    return { success: true, path: targetPath, isDirectory: false, entry: getEntryPayload(targetPath) }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('fs:movePath', async (_, sourcePath, destinationDir) => {
+  try {
+    const source = normalizeFsPath(sourcePath)
+    const targetDir = normalizeFsPath(destinationDir)
+    if (!fs.existsSync(source)) return { success: false, error: 'Source path not found' }
+    if (!fs.existsSync(targetDir)) return { success: false, error: 'Destination folder not found' }
+    if (!fs.statSync(targetDir).isDirectory()) return { success: false, error: 'Destination must be a folder' }
+    if (pathWithin(source, targetDir)) return { success: false, error: 'Cannot move a folder into itself' }
+
+    const stat = fs.statSync(source)
+    const targetPath = makeUniquePath(path.join(targetDir, path.basename(source)))
+    movePathRecursive(source, targetPath)
+    if (stat.isDirectory()) remapFolderIconPaths(source, targetPath)
+
+    return {
+      success: true,
+      oldPath: source,
+      path: targetPath,
+      isDirectory: stat.isDirectory(),
+      entry: getEntryPayload(targetPath),
+    }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('fs:copyPath', async (_, sourcePath, destinationDir) => {
+  try {
+    const source = normalizeFsPath(sourcePath)
+    const targetDir = normalizeFsPath(destinationDir)
+    if (!fs.existsSync(source)) return { success: false, error: 'Source path not found' }
+    if (!fs.existsSync(targetDir)) return { success: false, error: 'Destination folder not found' }
+    if (!fs.statSync(targetDir).isDirectory()) return { success: false, error: 'Destination must be a folder' }
+
+    const targetPath = makeUniquePath(path.join(targetDir, path.basename(source)), { copyStyle: true })
+    copyPathRecursive(source, targetPath)
+
+    return {
+      success: true,
+      oldPath: source,
+      path: targetPath,
+      isDirectory: fs.statSync(source).isDirectory(),
+      entry: getEntryPayload(targetPath),
+    }
+  } catch (err) {
+    return { success: false, error: err.message }
   }
 })
 
@@ -561,6 +823,26 @@ ipcMain.handle('fs:drives', () => {
 ipcMain.handle('launch:open', async (_, filePath) => {
   try { await shell.openPath(filePath); return { success: true } }
   catch (err) { return { success: false, error: err.message } }
+})
+
+/* ── IPC: File location ──────────────────────────────────────── */
+ipcMain.handle('file:revealPath', async (_, filePath) => {
+  try {
+    if (!filePath || typeof filePath !== 'string') {
+      return { success: false, error: 'Invalid file path' }
+    }
+
+    const normalizedPath = path.resolve(filePath)
+    
+    if (!fs.existsSync(normalizedPath)) {
+      return { success: false, error: 'File or folder not found' }
+    }
+
+    shell.showItemInFolder(normalizedPath)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
 })
 
 /* ══════════════════════════════════════════════════════════════

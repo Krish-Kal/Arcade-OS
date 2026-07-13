@@ -27,18 +27,27 @@ contextBridge.exposeInMainWorld('arcadeOS', {
     selectExecutable: () => ipcRenderer.invoke('fs:selectExecutable'),
     selectImage: () => ipcRenderer.invoke('fs:selectImage'),
     readDir: (path) => ipcRenderer.invoke('fs:readDir', path),
+    renamePath: (targetPath, nextName) => ipcRenderer.invoke('fs:renamePath', targetPath, nextName),
+    deletePath: (targetPath) => ipcRenderer.invoke('fs:deletePath', targetPath),
+    createFolder: (parentPath, name) => ipcRenderer.invoke('fs:createFolder', parentPath, name),
+    createFile: (parentPath, name, contents) => ipcRenderer.invoke('fs:createFile', parentPath, name, contents),
+    movePath: (sourcePath, destinationDir) => ipcRenderer.invoke('fs:movePath', sourcePath, destinationDir),
+    copyPath: (sourcePath, destinationDir) => ipcRenderer.invoke('fs:copyPath', sourcePath, destinationDir),
     homeDir: () => ipcRenderer.invoke('fs:homeDir'),
     drives: () => ipcRenderer.invoke('fs:drives'),
     selectIconFile: () => ipcRenderer.invoke('fs:selectIconFile'),
 saveFolderIcon: (folderPath, iconPath) => ipcRenderer.invoke('fs:saveFolderIcon', folderPath, iconPath),
-getAllFolderIcons: () => ipcRenderer.invoke('fs:getAllFolderIcons'),
-removeFolderIcon: (folderPath) => ipcRenderer.invoke('fs:removeFolderIcon', folderPath),
-readIconAsBase64: (path) => ipcRenderer.invoke('fs:readIconAsBase64', path),
+    getAllFolderIcons: () => ipcRenderer.invoke('fs:getAllFolderIcons'),
+    removeFolderIcon: (folderPath) => ipcRenderer.invoke('fs:removeFolderIcon', folderPath),
+    readIconAsBase64: (path) => ipcRenderer.invoke('fs:readIconAsBase64', path),
+    getFileIcon: (path) => ipcRenderer.invoke('fs:getFileIcon', path),
+    readFileBuffer: (path) => ipcRenderer.invoke('fs:readFileBuffer', path),
   },
 
   // Launcher
   launch: {
     open: (filePath) => ipcRenderer.invoke('launch:open', filePath),
+    revealPath: (filePath) => ipcRenderer.invoke('file:revealPath', filePath),
   },
 
   // System info

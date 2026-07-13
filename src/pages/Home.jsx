@@ -17,7 +17,7 @@
 // Layout, logic, store, component structure: UNCHANGED
 // ═══════════════════════════════════════════════════════════════
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useCallback, useMemo, useState, useEffect } from 'react'
 import {
   Play, Gamepad2, Grid3X3, TrendingUp, Clock,
   ChevronRight, Zap, Search, Settings, Power, Shield
@@ -130,27 +130,6 @@ const GLOBAL_CSS = `
     z-index: 1;
   }
 
-  /* ── PILL BUTTON ─────────────────────────────────────── */
-  .pill-btn {
-    transition:
-      background 0.2s cubic-bezier(0.2,0.8,0.2,1),
-      border-color 0.2s cubic-bezier(0.2,0.8,0.2,1),
-      color 0.2s cubic-bezier(0.2,0.8,0.2,1),
-      transform 0.2s cubic-bezier(0.2,0.8,0.2,1),
-      box-shadow 0.2s cubic-bezier(0.2,0.8,0.2,1);
-  }
-  .pill-btn:hover {
-    background: linear-gradient(
-      135deg,
-      rgba(91,140,255,0.14),
-      rgba(139,92,246,0.14)
-    ) !important;
-    border-color: rgba(139,92,246,0.36) !important;
-    color: #fff !important;
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(139,92,246,0.14);
-  }
-
   /* ── TIMELINE ROW ────────────────────────────────────── */
   .tl-row { transition: background 0.16s; }
   .tl-row:hover {
@@ -205,18 +184,24 @@ function useGlobalStyle(css) {
 export default function Home() {
   useGlobalStyle(GLOBAL_CSS)
 
-  const { games, apps, recentLaunches, launchItem, setActivePage } = useStore()
+  const games = useStore(state => state.games)
+  const recentLaunches = useStore(state => state.recentLaunches)
+  const launchItem = useStore(state => state.launchItem)
+  const setActivePage = useStore(state => state.setActivePage)
   const [now] = useState(Date.now())
 
-  const featured   = [...games].sort((a, b) => b.launchCount - a.launchCount).slice(0, 3)
-  const pinnedApps = apps.filter(a => a.pinned)
-  const recents    = recentLaunches.slice(0, 6)
+  const featured = useMemo(
+    () => [...games].sort((a, b) => b.launchCount - a.launchCount).slice(0, 3),
+    [games]
+  )
+  const recents = useMemo(() => recentLaunches.slice(0, 6), [recentLaunches])
 
-  const todayItems = recents.filter(i => now - (i.launchedAt || 0) < 86400000)
-  const yesterItems = recents.filter(i =>
+  const todayItems = useMemo(() => recents.filter(i => now - (i.launchedAt || 0) < 86400000), [now, recents])
+  const yesterItems = useMemo(() => recents.filter(i =>
     now - (i.launchedAt || 0) >= 86400000 &&
     now - (i.launchedAt || 0) < 172800000
-  )
+  ), [now, recents])
+  const launchRecent = useCallback((item) => launchItem(item, item.type), [launchItem])
 
   return (
     <div className="aos-root" style={{
@@ -286,33 +271,12 @@ export default function Home() {
                     key={game.id}
                     item={game}
                     rank={i + 1}
-                    onLaunch={() => launchItem(game, 'game')}
+                    launchItem={launchItem}
                     delay={i * 70}
                   />
                 ))}
               </div>
             </Section>
-
-            {/* QUICK LAUNCH */}
-            {pinnedApps.length > 0 && (
-              <Section
-                title="Quick Launch"
-                icon={<Zap size={12} />}
-                action="View all"
-                onAction={() => setActivePage('apps')}
-                delay={80}
-              >
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                  {pinnedApps.map(app => (
-                    <PillButton
-                      key={app.id}
-                      item={app}
-                      onLaunch={() => launchItem(app, 'app')}
-                    />
-                  ))}
-                </div>
-              </Section>
-            )}
 
             {/* RECENT ACTIVITY */}
             {recents.length > 0 && (
@@ -325,7 +289,7 @@ export default function Home() {
                   todayItems={todayItems}
                   yesterItems={yesterItems}
                   now={now}
-                  onLaunch={(item) => launchItem(item, item.type)}
+                  onLaunch={launchRecent}
                 />
               </Section>
             )}
@@ -499,8 +463,9 @@ const CARD_TINTS = [
   },
 ]
 
-function HeroCard({ item, rank, onLaunch, delay }) {
+const HeroCard = React.memo(function HeroCard({ item, rank, launchItem, delay }) {
   const tint = CARD_TINTS[(rank - 1) % 3]
+  const onLaunch = useCallback(() => launchItem(item, 'game'), [item, launchItem])
 
   return (
     <div
@@ -554,6 +519,23 @@ function HeroCard({ item, rank, onLaunch, delay }) {
           overflow: 'hidden',
         }}
       >
+        {item.image && (
+          <img
+            src={item.image}
+            alt={item.name}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              objectPosition: 'center 12%',
+              transform: 'scale(1.02)',
+              zIndex: 0,
+            }}
+          />
+        )}
+
         {/* Grid texture overlay */}
         <div style={{
           position: 'absolute', inset: 0, opacity: 0.055,
@@ -574,13 +556,14 @@ function HeroCard({ item, rank, onLaunch, delay }) {
           pointerEvents: 'none',
         }} />
 
-        {/* Game icon */}
-        <Gamepad2
-          size={34}
-          strokeWidth={1}
-          color="rgba(255,255,255,0.22)"
-          style={{ position: 'relative', zIndex: 2 }}
-        />
+        {!item.image && (
+          <Gamepad2
+            size={34}
+            strokeWidth={1}
+            color="rgba(255,255,255,0.22)"
+            style={{ position: 'relative', zIndex: 2 }}
+          />
+        )}
 
         {/* Rank badge — glass pill */}
         <div style={{
@@ -649,48 +632,10 @@ function HeroCard({ item, rank, onLaunch, delay }) {
       </div>
     </div>
   )
-}
-
-/* ─── PILL BUTTON ────────────────────────────────────────────── */
-/*
-  FIXED: Was using opaque rgba(255,255,255,0.04) which stacks with
-  parent to create visible "fog pill" look.
-  
-  Now: glass pill with subtle blue icon tint, clear glass body.
-*/
-function PillButton({ item, onLaunch }) {
-  return (
-    <button
-      className="pill-btn"
-      onClick={onLaunch}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '7px 14px', borderRadius: 999, cursor: 'pointer',
-
-        /* Glass pill base */
-        background: 'rgba(255,255,255,0.038)',
-        border: '1px solid rgba(255,255,255,0.07)',
-        color: T.textPrimary,
-        fontSize: 11,
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
-      }}
-    >
-      <div style={{
-        width: 16, height: 16,
-        borderRadius: 5, flexShrink: 0,
-        background: 'rgba(139,92,246,0.16)',
-        border: '1px solid rgba(139,92,246,0.14)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <Grid3X3 size={9} color={T.purple} />
-      </div>
-      {item.name}
-    </button>
-  )
-}
+})
 
 /* ─── TIMELINE ───────────────────────────────────────────────── */
-function Timeline({ todayItems, yesterItems, now, onLaunch }) {
+const Timeline = React.memo(function Timeline({ todayItems, yesterItems, now, onLaunch }) {
   return (
     <div>
       {todayItems.length > 0 && (
@@ -722,7 +667,7 @@ function Timeline({ todayItems, yesterItems, now, onLaunch }) {
       )}
     </div>
   )
-}
+})
 
 function GroupLabel({ text }) {
   return (
@@ -736,7 +681,8 @@ function GroupLabel({ text }) {
   )
 }
 
-function TimelineRow({ item, now, onLaunch, isLast, faded }) {
+const TimelineRow = React.memo(function TimelineRow({ item, now, onLaunch, isLast, faded }) {
+  const handleLaunch = useCallback(() => onLaunch(item), [item, onLaunch])
   const ago    = item.launchedAt ? Math.round((now - item.launchedAt) / 60000) : null
   const agoStr = ago === null ? '' : ago < 60 ? `${ago}m ago` : ago < 1440 ? `${Math.round(ago / 60)}h ago` : 'Yesterday'
 
@@ -792,7 +738,7 @@ function TimelineRow({ item, now, onLaunch, isLast, faded }) {
       </div>
       <div style={{ fontSize: 10, color: T.textMuted, whiteSpace: 'nowrap' }}>{agoStr}</div>
 
-      <button className="tl-launch" onClick={onLaunch} style={{
+      <button className="tl-launch" onClick={handleLaunch} style={{
         fontSize: 10, padding: '4px 9px', borderRadius: 6, whiteSpace: 'nowrap',
         background: 'rgba(91,140,255,0.10)',
         border: '1px solid rgba(91,140,255,0.20)',
@@ -802,7 +748,7 @@ function TimelineRow({ item, now, onLaunch, isLast, faded }) {
       </button>
     </div>
   )
-}
+})
 
 /* ─── GLASS PANEL ────────────────────────────────────────────── */
 /*

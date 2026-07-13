@@ -17,18 +17,16 @@ function speak(text) {
 }
 
 export default function AmbientCommandLayer() {
-  const {
-    apps,
-    games,
-    recentLaunches,
-    commandHistory,
-    aiCommandState,
-    setAICommandState,
-    rememberCommand,
-    launchItem,
-    setActivePage,
-    addNotification,
-  } = useStore()
+  const apps = useStore(state => state.apps)
+  const games = useStore(state => state.games)
+  const recentLaunches = useStore(state => state.recentLaunches)
+  const commandHistory = useStore(state => state.commandHistory)
+  const aiCommandState = useStore(state => state.aiCommandState)
+  const setAICommandState = useStore(state => state.setAICommandState)
+  const rememberCommand = useStore(state => state.rememberCommand)
+  const launchItem = useStore(state => state.launchItem)
+  const setActivePage = useStore(state => state.setActivePage)
+  const addNotification = useStore(state => state.addNotification)
 
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
