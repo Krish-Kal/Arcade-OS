@@ -1,9 +1,11 @@
 // Games Page - Ultra Luxury Experience (FINAL - SORT DROPDOWN FIXED ONLY)
 
 import React, { useCallback, useState, useMemo, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Plus, Search, Grid3X3, List, SlidersHorizontal, Gamepad2 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import GameCard from '../components/GameCard'
+import GameDetails from '../components/GameDetails'
 import AddGameModal from '../components/AddGameModal'
 import ModifyGameModal from '../components/ModifyGameModel'
 
@@ -19,8 +21,13 @@ export default function Games() {
   const games = useStore(state => state.games)
   const updateGame = useStore(state => state.updateGame)
 
-  const [showModal, setShowModal] = useState(false)
+const [showModal, setShowModal] = useState(false)
   const [editingGame, setEditingGame] = useState(null)
+  // Deriving the selected game from the live `games` array (rather than
+  // storing the game object itself) means Modify Game and Remove Game
+  // always reflect current store data — no stale copy can be displayed.
+  const [selectedGameId, setSelectedGameId] = useState(null)
+  const selectedGame = games.find(g => g.id === selectedGameId) || null
   const [search, setSearch] = useState('')
   const [genre, setGenre] = useState(() => localStorage.getItem('gameGenre') || 'All')
   const [sort, setSort] = useState(() => localStorage.getItem('gameSort') || 'launches')
@@ -29,7 +36,9 @@ export default function Games() {
 
   const [openSort, setOpenSort] = useState(false)
   const sortRef = useRef(null)
-  const openEditGame = useCallback((game) => setEditingGame(game), [])
+const openEditGame = useCallback((game) => setEditingGame(game), [])
+  const openGameDetails = useCallback((game) => setSelectedGameId(game.id), [])
+  const closeGameDetails = useCallback(() => setSelectedGameId(null), [])
 
   // ✅ Persist preferences
   useEffect(() => {
@@ -77,6 +86,66 @@ export default function Games() {
 
     return list
   }, [games, debouncedSearch, genre, sort])
+
+// GamesPage never unmounts when details opens — this is a conditional
+  // return inside the same component, so search/genre/sort/view state
+  // above is preserved automatically when the user goes back.
+if (selectedGame) {
+    return (
+      <>
+        <GameDetails
+          game={selectedGame}
+          onBack={closeGameDetails}
+          onEdit={openEditGame}
+        />
+        {/* Portaled to document.body: GameDetails' entrance animation sets
+            opacity/transform on its root, which creates a new stacking
+            context. Rendering the modal as a plain child here would trap
+            it inside that context no matter what z-index it used. The
+            portal keeps it in the same React tree (state, closures, and
+            handlers all still work) but mounts it as a sibling of the
+            whole app in the real DOM, so it paints above everything. */}
+        {editingGame && createPortal(
+          <ModifyGameModal
+            game={editingGame}
+            onClose={() => setEditingGame(null)}
+            updateGame={updateGame}
+          />,
+          document.body
+        )}
+      </>
+    )
+  }
+
+// GamesPage never unmounts when details opens — this is a conditional
+  // return inside the same component, so search/genre/sort/view state
+  // above is preserved automatically when the user goes back.
+if (selectedGame) {
+    return (
+      <>
+        <GameDetails
+          game={selectedGame}
+          onBack={closeGameDetails}
+          onEdit={openEditGame}
+        />
+        {/* Portaled to document.body: GameDetails' entrance animation sets
+            opacity/transform on its root, which creates a new stacking
+            context. Rendering the modal as a plain child here would trap
+            it inside that context no matter what z-index it used. The
+            portal keeps it in the same React tree (state, closures, and
+            handlers all still work) but mounts it as a sibling of the
+            whole app in the real DOM, so it paints above everything. */}
+        {editingGame && createPortal(
+          <ModifyGameModal
+            game={editingGame}
+            onClose={() => setEditingGame(null)}
+            updateGame={updateGame}
+          />,
+          document.body
+        )}
+      </>
+    )
+  }
 
   return (
     <div style={{
@@ -818,16 +887,17 @@ export default function Games() {
         ) : view === 'grid' ? (
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(165px, 165px))',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 155px))',
 justifyContent: 'start',
 gap: 12
           }}>
             {filtered.map(game => (
-              <GameCard
+<GameCard
                 key={game.id}
                 game={game}
                 view="grid"
                 onEdit={openEditGame}
+                onOpenDetails={openGameDetails}
               />
             ))}
           </div>
@@ -838,24 +908,26 @@ gap: 12
             gap: 10
           }}>
             {filtered.map(game => (
-              <GameCard
+<GameCard
                 key={game.id}
                 game={game}
                 view="list"
                 onEdit={openEditGame}
+                onOpenDetails={openGameDetails}
               />
             ))}
           </div>
         )}
       </div>
 
-      {showModal && <AddGameModal onClose={() => setShowModal(false)} />}
-      {editingGame && (
+{showModal && <AddGameModal onClose={() => setShowModal(false)} />}
+      {editingGame && createPortal(
         <ModifyGameModal
           game={editingGame}
           onClose={() => setEditingGame(null)}
           updateGame={updateGame}
-        />
+        />,
+        document.body
       )}
     </div>
   )

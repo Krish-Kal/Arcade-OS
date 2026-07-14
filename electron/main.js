@@ -65,97 +65,131 @@ function createTray() {
 }
 
 /* ── Window ──────────────────────────────────────────────────── */
+
+// Windows 11's DWM `backgroundMaterial` API (Acrylic/Mica) does not exist
+// on Windows 10 — it's not a degraded version of the same feature, it's
+// simply absent. `os.release()` reports the kernel version as
+// "10.0.<build>" for both Windows 10 and 11; Windows 11 starts at build
+// 22000, so that's the only reliable way to distinguish them from Node.
+function getWindowsBuildNumber() {
+  if (process.platform !== 'win32') return 0
+  try {
+    const parts = os.release().split('.').map(Number)
+    return parts[2] || 0
+  } catch {
+    return 0
+  }
+}
+
+function supportsWin11BackgroundMaterial() {
+  return process.platform === 'win32' && getWindowsBuildNumber() >= 22000
+}
+
+// Defensive BrowserWindow creation. `transparent: true` combined with a
+// native material property is generally safe across Electron versions
+// (unsupported keys are ignored, not thrown), but a small number of
+// Linux compositor configurations reject alpha-channel windows outright.
+// If window creation itself throws, fall back to a fully opaque window
+// using Arcade OS's own base color rather than letting the app crash or
+// render invisibly.
+function createArcadeWindow(baseOptions, platformOptions) {
+  try {
+    return new BrowserWindow({ ...baseOptions, ...platformOptions })
+  } catch (err) {
+    console.warn(
+      'Native transparency/backdrop options were rejected by this platform, falling back to an opaque window:',
+      err.message
+    )
+    return new BrowserWindow({
+      ...baseOptions,
+      transparent: false,
+      backgroundColor: '#0c0f1f' // matches --bg-base, so the fallback still reads as Arcade OS
+    })
+  }
+}
+
 function createWindow() {
 
-  // ─────────────────────────────────────────────────────────────
-  // DETECT OS for platform-specific transparency method
-  // Windows 11  → backgroundMaterial: 'acrylic'  (DWM Acrylic)
-  // Windows 10  → backgroundMaterial: 'acrylic' still works partially;
-  //               add win.setBackgroundColor('') for extra clarity
-  // macOS       → vibrancy: 'fullscreen-ui' or 'sidebar'
-  // Linux       → transparent: true only (compositor-dependent)
+// ─────────────────────────────────────────────────────────────
+  // PLATFORM-AWARE COMPOSITING PIPELINE
+  //
+  // OS/native backdrop or transparent compositor
+  //   ↓
+  // Electron BrowserWindow alpha surface (transparent: true)
+  //   ↓
+  // native background material, where genuinely supported:
+  //   Windows 11 (build ≥ 22000) → backgroundMaterial: 'acrylic' (real DWM
+  //     desktop blur, applied by the OS compositor, not by this app)
+  //   macOS                       → vibrancy (real NSVisualEffectView blur,
+  //     also OS compositor-driven)
+  //   Windows 10 / Linux          → no native blur API exists here; the
+  //     window is simply alpha-transparent, and translucency comes
+  //     entirely from the CSS glass layers below
+  //   ↓
+  // Arcade OS CSS: html/body/#root transparent, low-opacity shell tint
+  //   ↓
+  // CSS glass panels/cards (backdrop-filter blurs OTHER RENDERED CONTENT
+  //   inside this window — sidebar behind a card, for example — never the
+  //   real OS desktop; that distinction matters and was wrong before)
+  //   ↓
+  // UI content
   // ─────────────────────────────────────────────────────────────
   const isMac     = process.platform === 'darwin'
   const isWindows = process.platform === 'win32'
+  const isLinux   = process.platform === 'linux'
+  const win11BackgroundMaterial = supportsWin11BackgroundMaterial()
 
-  const win = new BrowserWindow({
-    width:  1400,
-    height: 900,
-    minWidth:  1000,
-    minHeight: 700,
-    show:  false,
-    frame: false,
-    titleBarStyle: 'hidden',
-    fullscreenable: true,
-    autoHideMenuBar: true,
+  const platformOptions = {}
 
-    // ─────────────────────────────────────────────────────────
-    // KEY FIX 1: Remove opaque backgroundColor
-    //
-    // BEFORE: backgroundColor: '#0a0a0f'
-    //   → Electron pre-paints the entire BrowserWindow surface in
-    //     this solid color BEFORE React renders. Even if CSS has
-    //     background: transparent, this layer blocks the desktop.
-    //     Think of it as a permanent opaque mat behind everything.
-    //
-    // AFTER: backgroundColor removed entirely (defaults to #00000000)
-    //   → Window surface starts fully transparent. CSS glass layers
-    //     now actually composite against the real desktop wallpaper.
-    // ─────────────────────────────────────────────────────────
+  if (isWindows && win11BackgroundMaterial) {
+    // Real native Acrylic — Windows 11 (DWM build ≥ 22000) only.
+    platformOptions.backgroundMaterial = 'acrylic'
+  } else if (isWindows) {
+    // Windows 10: no equivalent native material API in Electron/DWM.
+    // `transparent: true` below plus CSS glass is the entire story here.
+  } else if (isMac) {
+    // 'under-window' gives a clean native blur of whatever is behind the
+    // window without macOS's lighter 'fullscreen-ui' wash, which sits
+    // closer to Arcade OS's dark tinted aesthetic once the CSS tint
+    // layers on top of it.
+    platformOptions.vibrancy = 'under-window'
+    platformOptions.visualEffectState = 'active'
+  }
+  // Linux: intentionally no native material option is set. Electron has
+  // no cross-desktop-environment blur API; `transparent: true` is honored
+  // only if the running compositor (Mutter, KWin, Picom, etc.) supports
+  // ARGB visuals. There's no reliable way to query that from the main
+  // process, so we just request transparency and let the Arcade OS CSS
+  // glass tint carry the visual regardless of whether the compositor
+  // paints true blur behind it.
 
-    // ─────────────────────────────────────────────────────────
-    // KEY FIX 2: transparent: true
-    //
-    // Tells the OS compositor this window has an alpha channel.
-    // Without this, even rgba(0,0,0,0) in CSS renders as black
-    // because the window itself has no alpha — it's a solid rectangle.
-    //
-    // With transparent: true:
-    //   - Window chrome is alpha-composited against desktop
-    //   - backdrop-filter: blur() now blurs the ACTUAL desktop content
-    //   - CSS rgba() layers become genuinely translucent
-    // ─────────────────────────────────────────────────────────
-    transparent: true,
+  const win = createArcadeWindow(
+    {
+      width:  1400,
+      height: 900,
+      minWidth:  1000,
+      minHeight: 700,
+      show:  false,
+      frame: false,
+      titleBarStyle: 'hidden',
+      fullscreenable: true,
+      autoHideMenuBar: true,
 
-    // ─────────────────────────────────────────────────────────
-    // KEY FIX 3: Windows 11 Acrylic (native OS material)
-    //
-    // backgroundMaterial: 'acrylic' triggers DWM Acrylic on Win11.
-    // This is the SAME system used by Windows 11 taskbar, Start menu,
-    // and Settings. It applies:
-    //   - Real-time desktop blur (OS-level, not CSS)
-    //   - Noise texture overlay (subtle grain)
-    //   - Tint composite on top
-    //
-    // On Windows 10: degrades to 'none' gracefully (transparent still works)
-    // On macOS/Linux: property is ignored (vibrancy handles macOS below)
-    // ─────────────────────────────────────────────────────────
-    ...(isWindows && { backgroundMaterial: 'acrylic' }),
+      // No `backgroundColor` here on purpose: Electron would otherwise
+      // pre-paint the whole window surface in that solid color before
+      // React ever mounts, which blocks the desktop no matter what the
+      // CSS says. Omitting it defaults to a fully transparent surface.
+      transparent: true,
 
-    // ─────────────────────────────────────────────────────────
-    // KEY FIX 4: macOS Vibrancy
-    //
-    // vibrancy: 'fullscreen-ui' → same material as Spotlight, Control Center
-    // Applies native NSVisualEffectView over the entire window.
-    // Combined with transparent: true → full Liquid Glass effect.
-    //
-    // Options (pick based on desired darkness):
-    //   'fullscreen-ui'    → slightly lighter, good for big surfaces
-    //   'under-window'     → pure window blur, very clean
-    //   'sidebar'          → darker tinted blur (closer to our aesthetic)
-    //   'hud'              → darkest, most gaming-appropriate
-    //
-    // We use 'fullscreen-ui' as base; CSS tinting darkens to our theme.
-    // ─────────────────────────────────────────────────────────
-    ...(isMac && { vibrancy: 'fullscreen-ui', visualEffectState: 'active' }),
-
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+      icon: path.join(__dirname, '../public/icons/icon.ico'),
     },
-    icon: path.join(__dirname, '../public/icons/icon.ico'),
-  })
+    platformOptions
+  )
 
   mainWindow = win
 
@@ -170,14 +204,11 @@ function createWindow() {
     win.show()
     win.maximize()
 
-    // ─────────────────────────────────────────────────────────
-    // KEY FIX 5: Clear residual background color post-show
-    //
-    // On some Windows configurations, Electron applies a default
-    // background tint even with transparent: true. Calling
-    // setBackgroundColor('') or setBackgroundColor('#00000000')
-    // after show() clears this final layer.
-    // ─────────────────────────────────────────────────────────
+// On some Windows configurations Electron still applies a default
+    // background tint to the native window surface even with
+    // transparent: true. This clears that surface-level alpha explicitly
+    // — it's an Electron/OS-level operation, unrelated to any CSS in the
+    // renderer.
     win.setBackgroundColor('#00000000')
   })
 

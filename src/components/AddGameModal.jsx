@@ -15,11 +15,12 @@ const GENRES = [
 export default function AddGameModal({ onClose }) {
   const { addGame } = useStore()
 
-  const [form, setForm] = useState({
+const [form, setForm] = useState({
     name: '',
     path: '',
     genre: 'Action RPG',
-    image: ''
+    image: '',
+    wallpaper: ''
   })
 
   const [errors, setErrors] = useState({})
@@ -40,10 +41,16 @@ export default function AddGameModal({ onClose }) {
     }
   }
 
-  const browseImage = async () => {
+const browseImage = async () => {
     if (!isElectron) return
     const p = await window.arcadeOS.fs.selectImage()
     if (p) update('image', `file://${p}`)
+  }
+
+  const browseWallpaper = async () => {
+    if (!isElectron) return
+    const p = await window.arcadeOS.fs.selectImage()
+    if (p) update('wallpaper', `file://${p}`)
   }
 
   const validate = () => {
@@ -54,13 +61,14 @@ export default function AddGameModal({ onClose }) {
     return Object.keys(e).length === 0
   }
 
-  const submit = () => {
+const submit = () => {
     if (!validate()) return
     addGame({
       name: form.name.trim(),
       path: form.path.trim(),
       genre: form.genre,
-      image: form.image || null
+      image: form.image || null,
+      wallpaper: form.wallpaper || null
     })
     onClose()
   }
@@ -200,7 +208,7 @@ export default function AddGameModal({ onClose }) {
               </IconButton>
             </div>
 
-            {form.image && (
+ {form.image && (
               <div style={{
                 marginTop: 10,
                 height: 85,
@@ -211,6 +219,43 @@ export default function AddGameModal({ onClose }) {
                 <img
                   src={form.image}
                   alt="preview"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    filter: 'brightness(0.9)'
+                  }}
+                />
+              </div>
+            )}
+          </Field>
+
+          {/* WALLPAPER (Game Details hero background) */}
+          <Field label="Details Wallpaper (optional)">
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                value={form.wallpaper}
+                onChange={e => update('wallpaper', e.target.value)}
+                placeholder="Image URL or file path — used on the Game Details page"
+                style={{ ...inputStyle(), flex: 1 }}
+              />
+
+              <IconButton onClick={browseWallpaper}>
+                <Upload size={14} />
+              </IconButton>
+            </div>
+
+            {form.wallpaper && (
+              <div style={{
+                marginTop: 10,
+                height: 110,
+                borderRadius: 12,
+                overflow: 'hidden',
+                border: '1px solid rgba(255,255,255,0.08)'
+              }}>
+                <img
+                  src={form.wallpaper}
+                  alt="wallpaper preview"
                   style={{
                     width: '100%',
                     height: '100%',

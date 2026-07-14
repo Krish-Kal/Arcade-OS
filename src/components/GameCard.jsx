@@ -1,15 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Play,
-  Trash2,
-  MoreVertical,
-  Gamepad2,
-  Heart,
-  FolderOpen
+  Gamepad2
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 
-const GENRE_COLORS = {
+export const GENRE_COLORS = {
   RPG: '#8b5cf6',
   'Action RPG': '#a855f7',
   Roguelike: '#22d3ee',
@@ -21,7 +17,7 @@ const GENRE_COLORS = {
 }
 
 // ================= RARITY SYSTEM =================
-const RARITY = {
+export const RARITY = {
   common: { glow: '#6b7280', intensity: 0.15 },
   rare: { glow: '#3b82f6', intensity: 0.25 },
   epic: { glow: '#a855f7', intensity: 0.35 },
@@ -46,23 +42,21 @@ function playHoverSound() {
   try {
     const ctx = getAudioCtx()
 
-    // 🔥 IMPORTANT: resume context (fixes silent audio in many browsers)
     if (ctx.state === 'suspended') {
       ctx.resume()
     }
 
     const now = ctx.currentTime
 
-    /* ===== MAIN CLICK (strong + audible) ===== */
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
 
-    osc.type = 'square' // 🔥 sharper than triangle
+    osc.type = 'square'
     osc.frequency.setValueAtTime(1200, now)
     osc.frequency.exponentialRampToValueAtTime(600, now + 0.12)
 
     gain.gain.setValueAtTime(0.0001, now)
-    gain.gain.exponentialRampToValueAtTime(0.25, now + 0.01) // 🔥 MUCH louder
+    gain.gain.exponentialRampToValueAtTime(0.25, now + 0.01)
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14)
 
     osc.connect(gain)
@@ -71,7 +65,6 @@ function playHoverSound() {
     osc.start(now)
     osc.stop(now + 0.14)
 
-    /* ===== SUB BASS LAYER (gives weight / premium feel) ===== */
     const sub = ctx.createOscillator()
     const subGain = ctx.createGain()
 
@@ -123,31 +116,14 @@ const GENRES = [
   'Other'
 ]
 
-export default React.memo(function GameCard({ game, view = 'grid', onEdit }) {
-  const launchItem = useStore(state => state.launchItem)
-  const removeGame = useStore(state => state.removeGame)
+export default React.memo(function GameCard({ game, view = 'grid', onEdit, onOpenDetails }) {
+const launchItem = useStore(state => state.launchItem)
 
   const [hovered, setHovered] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [fav, setFav] = useState(game.favorite || false)
-  const menuRef = useRef(null)
   const hoverPlayed = useRef(false)
   const cardRectRef = useRef(null)
   const tiltFrameRef = useRef(null)
   const nextTiltRef = useRef({ x: 0, y: 0 })
-
-  useEffect(() => {
-    if (!menuOpen) return
-
-    const close = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setMenuOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
-  }, [menuOpen])
 
   useEffect(() => () => {
     if (tiltFrameRef.current) cancelAnimationFrame(tiltFrameRef.current)
@@ -163,30 +139,52 @@ export default React.memo(function GameCard({ game, view = 'grid', onEdit }) {
     launchItem(game, 'game')
   }, [game, launchItem])
 
-  const handleRevealPath = async () => {
-    if (!game.path) {
-      console.warn('Game path is not set')
-      return
-    }
-    try {
-      const result = await window.arcadeOS.launch.revealPath(game.path)
-      if (!result.success) {
-        console.warn('Failed to reveal path:', result.error)
-      }
-    } catch (err) {
-      console.error('Error revealing path:', err)
-    }
-    setMenuOpen(false)
-  }
+  const handleOpenDetails = useCallback(() => {
+    onOpenDetails?.(game)
+  }, [game, onOpenDetails])
 
   const color = GENRE_COLORS[game.genre] || GENRE_COLORS.default
   const rarity = RARITY[getRarity(game)]
   const [tilt, setTilt] = useState({ x: 0, y: 0 })
 
+  // ---- COVER IMAGE POSITIONING (cover-fill system) ----
+  // Default focal point; refined once the image loads and we know its
+  // natural aspect ratio. object-fit is ALWAYS 'cover' — we only ever
+  // adjust object-position, never fall back to 'contain'.
+  const [imagePosition, setImagePosition] = useState('50% 50%')
+
+  const handleCoverLoad = useCallback((event) => {
+    const { naturalWidth, naturalHeight } = event.target
+    if (!naturalWidth || !naturalHeight) return
+
+    const aspect = naturalWidth / naturalHeight
+
+    if (aspect < 0.75) {
+      // strongly portrait (e.g. Watch Dogs-style key art) — bias up so
+      // faces/logos near the top aren't cropped out
+      setImagePosition('50% 25%')
+    } else if (aspect < 1.05) {
+      // near-square artwork
+      setImagePosition('50% 40%')
+    } else {
+      // landscape / wide artwork
+      setImagePosition('50% 50%')
+    }
+  }, [])
+
   /* ================= LIST VIEW ================= */
   if (view === 'list') {
     return (
       <div
+        role="button"
+        tabIndex={0}
+        onClick={handleOpenDetails}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            handleOpenDetails()
+          }
+        }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
@@ -220,6 +218,15 @@ export default React.memo(function GameCard({ game, view = 'grid', onEdit }) {
   /* ================= GRID / PREMIUM TILE ================= */
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={handleOpenDetails}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          handleOpenDetails()
+        }
+      }}
       onMouseEnter={(e) => {
         if (!hoverPlayed.current) {
           playHoverSound()
@@ -261,13 +268,11 @@ export default React.memo(function GameCard({ game, view = 'grid', onEdit }) {
         overflow: 'visible',
         isolation: 'isolate',
         transformStyle: 'flat',
-        zIndex: hovered || menuOpen ? 50 : 1,
+zIndex: hovered ? 50 : 1,
         willChange: 'transform',
         cursor: 'pointer',
 
-        transform: menuOpen
-          ? 'translateY(-3px)'
-          : `
+        transform: `
               perspective(1400px)
               rotateX(${tilt.y}deg)
               rotateY(${tilt.x}deg)
@@ -310,9 +315,17 @@ export default React.memo(function GameCard({ game, view = 'grid', onEdit }) {
   <div
     style={{
       position: 'relative',
-      borderRadius: 18,
+      borderRadius: 12,
       overflow: 'hidden',
-      isolation: 'isolate'
+      isolation: 'isolate',
+
+      background: 'rgba(14, 14, 19, 0.72)',
+
+      boxShadow: hovered
+        ? '0 12px 28px rgba(0,0,0,0.28)'
+        : '0 3px 10px rgba(0,0,0,0.14)',
+
+      transition: 'box-shadow 350ms ease'
     }}
   >
       {/* Animated glow frame */}
@@ -328,63 +341,51 @@ export default React.memo(function GameCard({ game, view = 'grid', onEdit }) {
         }}
       />
 
-      {/* IMAGE SECTION */}
-      <div
+      {/* IMAGE SECTION — edge-to-edge cover fill */}
+ <div
   style={{
     position: 'relative',
     zIndex: 1,
-    height: 215,
+    width: '100%',
+    height: 218,
+
     overflow: 'hidden',
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+
+    borderRadius: '12px 12px 8px 8px',
+    background: '#0b0b0f',
+
     transform: 'translateZ(0)',
     backfaceVisibility: 'hidden'
   }}
 >
         {game.image ? (
-          <>
           <img
-  src={game.image}
-  alt={game.name}
-  style={{
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    objectPosition: 'center 12%',
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    display: 'block',
+            src={game.image}
+            alt={game.name}
+            draggable={false}
+            onLoad={handleCoverLoad}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
 
-    transform: hovered ? 'scale(1.05)' : 'scale(1)',
+              objectFit: 'cover',
+              objectPosition: game.coverPosition || imagePosition,
 
-    transition: 'transform 0.9s cubic-bezier(.2,.8,.2,1)',
+              display: 'block',
+              backfaceVisibility: 'hidden',
 
-  }}
-/>
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                background: `
-                  radial-gradient(circle at top, transparent 35%, rgba(0,0,0,0.65) 100%),
-                  linear-gradient(to top, rgba(0,0,0,0.88), transparent 55%)
-                `,
-                pointerEvents: 'none'
-              }}
-            />
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                background: hovered
-                  ? 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.08), transparent 45%)'
-                  : 'transparent',
-                mixBlendMode: 'screen',
-                opacity: 0.35,
-                pointerEvents: 'none'
-              }}
-            />
-          </>
+              transform: hovered
+                ? 'scale3d(1.015, 1.015, 1)'
+                : 'scale3d(1, 1, 1)',
+
+              transition:
+                'transform 350ms cubic-bezier(0.22, 1, 0.36, 1)',
+
+              willChange: hovered ? 'transform' : 'auto'
+            }}
+          />
         ) : (
           <div
             style={{
@@ -399,31 +400,15 @@ export default React.memo(function GameCard({ game, view = 'grid', onEdit }) {
           </div>
         )}
 
-        {/* Glass refraction layer */}
+        {/* Single consolidated readability overlay — keeps the top
+            60-65% of the artwork clean and sharp, only darkening
+            behind the title/badge/play-button area */}
         <div
           style={{
             position: 'absolute',
             inset: 0,
-            background: hovered
-              ? `radial-gradient(circle at ${tilt.x + 50}% ${tilt.y + 50}%,
-                  rgba(255,255,255,0.06),
-                  transparent 50%)`
-              : 'transparent',
-            mixBlendMode: 'overlay',
-            opacity: 0.35,
-            pointerEvents: 'none'
-          }}
-        />
-
-        {/* cinematic overlay */}
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: `
-              linear-gradient(to top, rgba(0,0,0,0.92), transparent 70%),
-              radial-gradient(circle at 30% 10%, ${color}18, transparent 60%)
-            `,
+            background:
+              'linear-gradient(to top, rgba(4,6,12,0.90) 0%, rgba(4,6,12,0.35) 30%, transparent 62%)',
             pointerEvents: 'none'
           }}
         />
@@ -459,29 +444,7 @@ export default React.memo(function GameCard({ game, view = 'grid', onEdit }) {
 
 </div>
 
-        {/* ACTION ICONS */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 14,
-            right: 14,
-            display: 'flex',
-            gap: 8,
-            zIndex: 30
-          }}
-        >
-          <IconBtn
-            active={fav}
-            onClick={() => setFav(!fav)}
-            icon={<Heart size={14} fill={fav ? '#ff4d4f' : 'none'} />}
-          />
-          <IconBtn
-            onClick={() => setMenuOpen(!menuOpen)}
-            icon={<MoreVertical size={14} />}
-          />
-        </div>
-
-        {/* TITLE AREA */}
+{/* TITLE AREA */}
         <div
           style={{
             position: 'absolute',
@@ -506,30 +469,14 @@ export default React.memo(function GameCard({ game, view = 'grid', onEdit }) {
             {game.name}
           </div>
 
-          <div
+<div
             style={{
               display: 'flex',
-              justifyContent: 'space-between',
+              justifyContent: 'flex-end',
               alignItems: 'center',
               marginTop: 8
             }}
           >
-            <div
-  style={{
-    fontSize: 10,
-    padding: '4px 10px',
-    borderRadius: 999,
-    background: `${color}18`,
-    border: `1px solid ${color}40`,
-    color: color,
-    fontWeight: 600,
-    letterSpacing: '0.05em',
-    backdropFilter: 'blur(6px)'
-  }}
->
-  {game.genre}
-</div>
-
             <PlayButton
               color={color}
               onClick={handleLaunch}
@@ -537,89 +484,24 @@ export default React.memo(function GameCard({ game, view = 'grid', onEdit }) {
           </div>
         </div>
       </div>
-    </div> {/* END INNER CLIP LAYER */}
+</div> {/* END INNER CLIP LAYER */}
 </div> {/* END CONTENT WRAPPER */}
-      {/* MENU */}
-      {menuOpen && (
-        <div
-          ref={menuRef}
-          className="game-menu"
-          style={{
-  position: 'absolute',
-
-  top: 52,
-  right: -6,
-
-  zIndex: 9999999,
-
-  pointerEvents: 'auto',
-
-  background: 'rgba(10, 12, 20, 0.96)',
-
-  backdropFilter: 'blur(24px)',
-  WebkitBackdropFilter: 'blur(24px)',
-
-  borderRadius: 16,
-
-  border: '1px solid rgba(139,92,246,0.22)',
-
-  overflow: 'hidden',
-
-  minWidth: 180,
-
-  boxShadow: `
-    0 24px 60px rgba(0,0,0,0.82),
-    0 0 0 1px rgba(255,255,255,0.04),
-    0 0 35px rgba(139,92,246,0.18)
-  `,
-
-  padding: 5,
-
-  transform: `
-    translateY(0px)
-    scale(1)
-  `,
-
-  transformOrigin: 'top right',
-
-  animation: 'menuPop 0.16s cubic-bezier(.2,.8,.2,1)',
-
-  isolation: 'isolate'
-}}
-        >
-          <MenuItem
-            icon={<Gamepad2 size={12} />}
-            label="Modify Game"
-            styleVariant="primary"
-            onClick={() => {
-              setMenuOpen(false)
-              onEdit?.(game)
-            }}
-          />
-          <MenuItem
-            icon={<FolderOpen size={12} />}
-            label="Open File Location"
-            onClick={handleRevealPath}
-          />
-          <MenuItem
-            icon={<Trash2 size={12} />}
-            label="Remove"
-            danger
-            onClick={() => removeGame(game.id)}
-          />
-        </div>
-      )}
-
     </div>
   )
 })
 
 /* ================= REUSABLES ================= */
 
-function PlayButton({ onClick, color }) {
+export function PlayButton({ onClick, color }) {
   return (
     <button
-      onClick={onClick}
+      aria-label="Play game"
+      onClick={(e) => {
+        // Card body has its own click handler that opens Game Details —
+        // Play must only ever launch, never navigate.
+        e.stopPropagation()
+        onClick?.(e)
+      }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = 'scale(1.08)'
         e.currentTarget.style.boxShadow = `0 12px 28px ${color}55`
@@ -649,11 +531,12 @@ height: 28,
   )
 }
 
-function IconBtn({ icon, onClick, active }) {
+export function IconBtn({ icon, onClick, active, 'aria-label': ariaLabel }) {
   const [h, setH] = useState(false)
 
   return (
     <button
+      aria-label={ariaLabel}
       onClick={(e) => {
         e.stopPropagation()
         onClick?.(e)
@@ -703,7 +586,7 @@ function Badge({ text, color }) {
   )
 }
 
-function MenuItem({ icon, label, danger, onClick, styleVariant }) {
+export function MenuItem({ icon, label, danger, onClick, styleVariant }) {
   const [hover, setHover] = useState(false)
   const isPrimary = styleVariant === 'primary'
 

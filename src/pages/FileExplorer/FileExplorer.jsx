@@ -1871,10 +1871,9 @@ export default function FileExplorer() {
         overflow: 'visible',
         background: `
           radial-gradient(circle at 20% 0%, rgba(109,40,217,0.12), transparent 55%),
-          radial-gradient(circle at 80% 100%, rgba(59,130,246,0.08), transparent 60%),
+
           linear-gradient(180deg, rgba(11,18,32,0.32), rgba(17,24,39,0.22))
         `,
-        backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
         fontFamily: 'Inter, system-ui, -apple-system, sans-serif', letterSpacing: '0.2px',
         willChange: 'initial', transform: 'translateZ(0)', backfaceVisibility: 'hidden',
       }}
