@@ -1,0 +1,945 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* ── Background Palette ─────────────────────────────────────── */
+  --bg-void: #02030a;
+  --bg-deep: #070916;
+  --bg-base: #0c0f1f;
+  --bg-elevated: #12162a;
+  --bg-card: #161a33;
+  --bg-hover: #1d2242;
+
+  /* ── Accent Colors ──────────────────────────────────────────── */
+  --accent-primary: #5b8cff;
+  --accent-primary-dim: rgba(91, 140, 255, 0.13);
+  --accent-cyan: #5b8cff;
+  --accent-cyan-dim: rgba(91, 140, 255, 0.13);
+
+  --accent-secondary: #8b5cf6;
+  --accent-secondary-dim: rgba(139, 92, 246, 0.13);
+  --accent-purple: #8b5cf6;
+  --accent-purple-dim: rgba(139, 92, 246, 0.13);
+  --accent-tertiary: #a78bfa;
+  --accent-soft: #c4b5fd;
+  --accent-glow: rgba(139, 92, 246, 0.22);
+
+  /* ── Status Colors ──────────────────────────────────────────── */
+  --accent-green: #34d399;
+  --accent-amber: #fbbf24;
+  --accent-red: #f87171;
+
+  /* ── Text Hierarchy ─────────────────────────────────────────── */
+  --text-primary: #f0f2ff;
+  --text-secondary: #aab0d6;
+  --text-muted: #6c7399;
+  --text-dim: #3b4166;
+
+  /* ── Borders ────────────────────────────────────────────────── */
+  --border-subtle:  rgba(255, 255, 255, 0.035);
+  --border-dim:     rgba(255, 255, 255, 0.07);
+  --border-normal:  rgba(255, 255, 255, 0.11);
+  --border-bright:  rgba(255, 255, 255, 0.18);
+  --border-focus:   rgba(139, 92, 246, 0.38);
+  --border-blue:    rgba(91, 140, 255, 0.22);
+
+  /* ── Typography ─────────────────────────────────────────────── */
+  --font-display: 'Orbitron', sans-serif;
+  --font-body:    'Inter', sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+
+  /* ── Radius ─────────────────────────────────────────────────── */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-2xl: 28px;
+
+  /* ── Layout ─────────────────────────────────────────────────── */
+  --sidebar-width:     clamp(196px, 15vw, 232px);
+  --sidebar-collapsed: 64px;
+  --titlebar-height:   46px;
+
+  /* ── Transitions ────────────────────────────────────────────── */
+  --transition-fast:   160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --transition-normal: 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --transition-slow:   520ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── Shadows ────────────────────────────────────────────────── */
+  --shadow-soft:   0 4px 24px rgba(0, 0, 0, 0.38);
+  --shadow-medium: 0 12px 48px rgba(0, 0, 0, 0.55);
+  --shadow-heavy:  0 24px 80px rgba(0, 0, 0, 0.68);
+  --shadow-glow:   0 0 36px rgba(139, 92, 246, 0.14);
+  --shadow-glow-blue: 0 0 36px rgba(91, 140, 255, 0.12);
+
+  /* ═══════════════════════════════════════════════════════════════
+     TRUE GLASS SYSTEM — Core translucency tokens
+     Use these across ALL pages and components for consistency.
+     
+     OPACITY TARGETS:
+       glass-ultra   → 8–14%   (most transparent, hero panels)
+       glass-panel   → 14–22%  (standard panels, workspace)
+       glass-card    → 18–28%  (cards, floating elements)
+       glass-overlay → 28–42%  (command bars, modals)
+       glass-opaque  → 42–60%  (only for critical overlays)
+  ═══════════════════════════════════════════════════════════════ */
+
+  /* Tinted glass backgrounds */
+  --glass-ultra:   rgba(7, 9, 22, 0.12);
+  --glass-thin:    rgba(7, 9, 22, 0.20);
+--glass-panel:   rgba(7, 9, 22, 0.9);
+  --glass-card:    rgba(11, 16, 34, 0.32);
+  --glass-overlay: rgba(7, 9, 22, 0.52);
+
+  /* Blue-tinted glass variants */
+  --glass-blue-ultra: rgba(91, 140, 255, 0.04);
+  --glass-blue-thin:  rgba(91, 140, 255, 0.07);
+  --glass-blue-card:  rgba(91, 140, 255, 0.10);
+
+  /* Purple-tinted glass variants */
+  --glass-purple-ultra: rgba(139, 92, 246, 0.04);
+  --glass-purple-thin:  rgba(139, 92, 246, 0.07);
+  --glass-purple-card:  rgba(139, 92, 246, 0.10);
+
+  /* Glass reflections (top-edge shimmer) */
+  --glass-reflect: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.00) 100%
+  );
+  --glass-reflect-side: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.055) 0%,
+    rgba(255, 255, 255, 0.008) 60%,
+    rgba(255, 255, 255, 0.00) 100%
+  );
+
+  /* Backdrop blur levels */
+  --blur-xs:    blur(8px)  saturate(140%) brightness(1.04);
+  --blur-sm:    blur(16px) saturate(150%) brightness(1.06);
+  --blur-md:    blur(28px) saturate(160%) brightness(1.08);
+  --blur-lg:    blur(42px) saturate(170%) brightness(1.10);
+  --blur-xl:    blur(64px) saturate(180%) brightness(1.12);
+}
+
+/* ── Reset ───────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  /* 
+    IMPORTANT: body must be fully transparent or near-transparent 
+    for Electron desktop wallpaper to bleed through.
+    The actual background color should come from the wallpaper/desktop.
+  */
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+  user-select: none;
+}
+
+button, input, textarea, select {
+  font: inherit;
+}
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── #root ambient ───────────────────────────────────────────── */
+/* 
+  FIXED: Was rgba(139,92,246,0.08) — kept subtle ambient only.
+  Removed opaque radial overlay that was blocking desktop.
+*/
+#root::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 55% 35% at 18% 8%,
+    rgba(91, 140, 255, 0.06),
+    transparent 55%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   APP SHELL
+   FIXED: Removed opaque linear-gradient base. 
+   Now uses very low opacity tinted glass so Electron desktop shows.
+══════════════════════════════════════════════════════════════ */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+
+  /*
+    BEFORE (blocking): background: radial + linear → rgba(2,3,10,0.92)+ 
+    AFTER  (glass): ultra-low opacity ambient tint only
+    Desktop wallpaper is now visible through the entire shell.
+  */
+  background:
+    radial-gradient(circle at 16% 0%,  rgba(91, 140, 255, 0.10), transparent 32%),
+    radial-gradient(circle at 84% 12%, rgba(139, 92, 246, 0.08), transparent 36%),
+    rgba(4, 5, 14, 0.22); /* ← True shell base: ~22% opacity */
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CINEMATIC BACKDROP
+   FIXED: Reduced ambient opacity. Removed fog.
+   Ambients now ADD atmosphere without blocking desktop.
+══════════════════════════════════════════════════════════════ */
+.cinematic-backdrop {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+  transform: translateZ(0);
+}
+
+.ambient {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(44px);
+  /* 
+    FIXED: Was 0.55 — too bright, caused foggy haze.
+    Now 0.28 — atmospheric glow without blocking desktop.
+  */
+  opacity: 0.28;
+  animation: ambient-drift 16s cubic-bezier(0.45, 0, 0.25, 1) infinite alternate;
+}
+
+.ambient-a {
+  width: 44vw; height: 44vw;
+  left: -16vw; top: -20vw;
+  background: rgba(91, 140, 255, 0.18);
+}
+.ambient-b {
+  width: 34vw; height: 34vw;
+  right: -12vw; top: 2vh;
+  background: rgba(139, 92, 246, 0.15);
+  animation-delay: -5s;
+}
+.ambient-c {
+  width: 28vw; height: 28vw;
+  left: 42vw; bottom: -18vw;
+  background: rgba(52, 211, 153, 0.06);
+  animation-delay: -9s;
+}
+
+/* ── Depth Grid ──────────────────────────────────────────────── */
+.depth-grid {
+  position: absolute;
+  inset: -1px;
+  opacity: 0.09; /* Reduced from 0.13 */
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05)  1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(ellipse at 50% 18%, #000 0%, transparent 68%);
+}
+
+/* ── Vignette ────────────────────────────────────────────────── */
+.vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+
+  background:
+    /* ORIGINAL TOP — UNCHANGED */
+    linear-gradient(
+      180deg,
+      rgba(2, 3, 10, 0.5),
+      rgba(2, 3, 10, 0)
+    ) !important;
+}
+
+/* ADD THIS NEW BLOCK */
+.vignette::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+
+  height: 140px;
+
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(2, 3, 10, 0.08) 58%,
+    rgba(2, 3, 10, 0.9) 100%
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════
+   WORKSPACE FRAME + MAIN
+   The core layout shell. Must be translucent.
+══════════════════════════════════════════════════════════════ */
+.workspace-frame {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  gap: 0 !important;
+  padding: 0 !important;
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+
+.workspace-main {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  border: 0 !important;
+  border-radius: 0 !important;
+
+  width: 100%;
+  height: 100%;
+
+background:
+    linear-gradient(
+      145deg,
+      rgba(91, 140, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.03) 40%,
+      rgba(139, 92, 246, 0.06) 100%
+    ),
+    rgba(7, 9, 22, 0.8) !important;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.10),
+    0 10px 40px rgba(0,0,0,0.35);
+
+  backdrop-filter: blur(16px) saturate(138%);
+  -webkit-backdrop-filter: blur(16px) saturate(138%);
+  transform: translateZ(0);
+}
+
+/*
+  FIXED: ::before was a large opaque overlay blocking desktop.
+  Now: hidden to remove edge overlay effects.
+*/
+.workspace-main::before {
+  display: none !important;
+}
+
+/* ── Page Surface ────────────────────────────────────────────── */
+.page-surface {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  border-radius: 0 !important;
+  overflow: hidden;
+  position: relative;
+  z-index: 2;
+  background: transparent;
+  animation: page-cinema-in 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   AMBIENT AI EDGE
+   Kept — adds cinematic edge lighting without blocking
+══════════════════════════════════════════════════════════════ */
+.ambient-ai-edge {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
+  opacity: 0.26;
+  box-shadow:
+    inset 0 0 42px rgba(91, 140, 255, 0.04),
+    inset 0 0 120px rgba(139, 92, 246, 0.025);
+  transition: opacity var(--transition-slow), box-shadow var(--transition-slow);
+}
+
+.ambient-ai-edge.is-listening {
+  opacity: 0.72;
+  box-shadow:
+    inset 0 0 54px rgba(91, 140, 255, 0.12),
+    inset 0 0 160px rgba(139, 92, 246, 0.09);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   COMMAND PILL (Floating glass widget)
+══════════════════════════════════════════════════════════════ */
+.ambient-command-pill {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 9997;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 186px;
+  padding: 7px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+
+  /* True floating glass */
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.055) 0%, rgba(255, 255, 255, 0.008) 100%),
+    var(--glass-overlay);
+
+  color: var(--text-primary);
+  box-shadow:
+    0 18px 60px rgba(0, 0, 0, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  backdrop-filter:    blur(28px) saturate(140%);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  transform: translateZ(0);
+}
+
+.ambient-command-pill.is-listening {
+  border-color: rgba(91, 140, 255, 0.22);
+  box-shadow:
+    0 18px 70px rgba(91, 140, 255, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+.ambient-icon-btn {
+  width: 28px; height: 28px;
+  flex: 0 0 28px;
+  display: grid; place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    transform var(--transition-fast),
+    color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.ambient-icon-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  color: var(--text-primary);
+  background: rgba(91, 140, 255, 0.14);
+}
+
+.ambient-icon-btn:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.ambient-status { min-width: 0; flex: 1; line-height: 1.05; }
+.ambient-status span {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.ambient-status small {
+  display: block;
+  margin-top: 3px;
+  max-width: 92px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ambient-wave { display: flex; align-items: center; gap: 2px; width: 18px; }
+.ambient-wave i {
+  display: block;
+  width: 2px; height: 7px;
+  border-radius: 99px;
+  background: var(--accent-cyan);
+  opacity: 0.36;
+  transform-origin: center;
+}
+.is-listening .ambient-wave i {
+  animation: waveform 880ms ease-in-out infinite;
+}
+.is-listening .ambient-wave i:nth-child(2) { animation-delay: 120ms; }
+.is-listening .ambient-wave i:nth-child(3) { animation-delay: 240ms; }
+
+/* ══════════════════════════════════════════════════════════════
+   COMMAND OVERLAY + PANEL
+══════════════════════════════════════════════════════════════ */
+.command-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+  background: rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(3px);
+}
+
+.command-panel {
+  width: min(560px, calc(100vw - 32px));
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+
+  /* Glass modal — clear but tinted */
+  background:
+    linear-gradient(145deg,
+      rgba(255, 255, 255, 0.055) 0%,
+      rgba(255, 255, 255, 0.008) 100%
+    ),
+    rgba(10, 13, 28, 0.72);
+
+  box-shadow:
+    0 32px 100px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter:    blur(40px) saturate(160%);
+  -webkit-backdrop-filter: blur(40px) saturate(160%);
+  overflow: hidden;
+  animation: page-cinema-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.command-input-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  color: var(--text-muted);
+}
+.command-input-row input {
+  flex: 1; min-width: 0;
+  border: 0; outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+.command-input-row button {
+  width: 28px; height: 28px;
+  border: 0; border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted); cursor: pointer;
+}
+.command-input-row button:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.command-suggestions {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding: 12px 14px 14px;
+}
+.command-suggestions button {
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-secondary);
+  cursor: pointer; font-size: 11px;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+.command-suggestions button:hover {
+  background: rgba(91, 140, 255, 0.12);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SCROLLBAR
+══════════════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--accent-primary), var(--accent-secondary));
+  border-radius: 99px;
+  opacity: 0.6;
+}
+::-webkit-scrollbar-thumb:hover { opacity: 0.9; }
+
+/* ══════════════════════════════════════════════════════════════
+   ██████████████████████████████████████████████████████████
+   REUSABLE GLASS UTILITY SYSTEM
+   Use these classes on ANY page or component to match the system.
+   ██████████████████████████████████████████████████████████
+══════════════════════════════════════════════════════════════ */
+
+/*
+  .glass-ultra  — Hero panels, large background surfaces
+  .glass-panel  — Standard panels, sidebars, workspace areas
+  .glass-card   — Cards, list items, floating elements
+  .glass-modal  — Command bars, dropdowns, modals
+  .glass-pill   — Pills, badges, small floating elements
+*/
+
+/* ── Ultra Thin (most transparent) ─────────────────────────── */
+.glass-ultra {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.045) 0%,
+      rgba(255, 255, 255, 0.008) 100%
+    ),
+    rgba(7, 9, 22, 0.14);
+  backdrop-filter:    blur(28px) saturate(160%) brightness(1.08);
+  -webkit-backdrop-filter: blur(28px) saturate(160%) brightness(1.08);
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    var(--shadow-soft);
+}
+
+/* ── Standard Panel ──────────────────────────────────────────── */
+.glass-panel {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.010) 100%
+    ),
+    rgba(7, 9, 22, 0.26);
+  backdrop-filter:    blur(22px) saturate(155%) brightness(1.06);
+  -webkit-backdrop-filter: blur(22px) saturate(155%) brightness(1.06);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    var(--shadow-medium);
+}
+
+/* ── Card ────────────────────────────────────────────────────── */
+.glass-card {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.055) 0%,
+      rgba(255, 255, 255, 0.012) 100%
+    ),
+    rgba(11, 16, 34, 0.34);
+  backdrop-filter:    blur(16px) saturate(150%) brightness(1.05);
+  -webkit-backdrop-filter: blur(16px) saturate(150%) brightness(1.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    var(--shadow-soft);
+}
+
+/* ── Modal / Command ─────────────────────────────────────────── */
+.glass-modal {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(255, 255, 255, 0.012) 100%
+    ),
+    rgba(7, 9, 22, 0.58);
+  backdrop-filter:    blur(32px) saturate(160%) brightness(1.07);
+  -webkit-backdrop-filter: blur(32px) saturate(160%) brightness(1.07);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 32px 100px rgba(0, 0, 0, 0.52);
+}
+
+/* ── Pill ────────────────────────────────────────────────────── */
+.glass-pill {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter:    blur(16px) saturate(145%);
+  -webkit-backdrop-filter: blur(16px) saturate(145%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ── Blue-tinted variant ─────────────────────────────────────── */
+.glass-blue {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(91, 140, 255, 0.08) 0%,
+      rgba(91, 140, 255, 0.02) 100%
+    ),
+    rgba(7, 9, 22, 0.28);
+  backdrop-filter:    blur(28px) saturate(160%) brightness(1.07);
+  -webkit-backdrop-filter: blur(28px) saturate(160%) brightness(1.07);
+  border: 1px solid rgba(91, 140, 255, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(91, 140, 255, 0.08),
+    var(--shadow-glow-blue);
+}
+
+/* ── Purple-tinted variant ───────────────────────────────────── */
+.glass-purple {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(139, 92, 246, 0.08) 0%,
+      rgba(139, 92, 246, 0.02) 100%
+    ),
+    rgba(7, 9, 22, 0.28);
+  backdrop-filter:    blur(28px) saturate(160%) brightness(1.07);
+  -webkit-backdrop-filter: blur(28px) saturate(160%) brightness(1.07);
+  border: 1px solid rgba(139, 92, 246, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(139, 92, 246, 0.09),
+    var(--shadow-glow);
+}
+
+/* ── Hover elevation helpers ─────────────────────────────────── */
+.glass-hover {
+  transition:
+    transform var(--transition-normal),
+    box-shadow var(--transition-normal),
+    border-color var(--transition-normal),
+    background var(--transition-normal);
+}
+.glass-hover:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    var(--shadow-heavy);
+  border-color: rgba(139, 92, 246, 0.22);
+}
+
+/* ── Reflection line ─────────────────────────────────────────── */
+/* Add ::before to any glass element for premium top-edge shimmer */
+.glass-reflect::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.18) 30%,
+    rgba(255, 255, 255, 0.28) 50%,
+    rgba(255, 255, 255, 0.18) 70%,
+    transparent 100%
+  );
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* ── Glow border on focus/active ─────────────────────────────── */
+.glass-focus {
+  border-color: var(--border-focus) !important;
+  box-shadow:
+    0 0 0 1px rgba(139, 92, 246, 0.18),
+    0 0 28px rgba(139, 92, 246, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TYPOGRAPHY UTILITIES
+══════════════════════════════════════════════════════════════ */
+.glow-primary   { text-shadow: 0 0 14px rgba(91, 140, 255, 0.42); }
+.glow-secondary { text-shadow: 0 0 16px rgba(139, 92, 246, 0.42); }
+
+.text-gradient-blue {
+  background: linear-gradient(90deg, #f0f4ff 0%, #a0b8ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.text-gradient-purple {
+  background: linear-gradient(90deg, #e0d4ff 0%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   UTILITY CLASSES
+══════════════════════════════════════════════════════════════ */
+.truncate    { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flex        { display: flex; }
+.flex-col    { flex-direction: column; }
+.items-center{ align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.gap-4 { gap: 16px; }
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.relative { position: relative; }
+.absolute { position: absolute; }
+.pointer-none { pointer-events: none; }
+
+.grid-bg {
+  background-image:
+    linear-gradient(var(--border-subtle) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-subtle) 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: 0.22;
+}
+
+.hex-clip {
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PREMIUM ACCENTS
+══════════════════════════════════════════════════════════════ */
+.border-glow {
+  border: 1px solid var(--border-focus);
+  box-shadow: 0 0 24px rgba(139, 92, 246, 0.13), inset 0 0 16px rgba(139, 92, 246, 0.04);
+}
+
+.loading-bar {
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--accent-primary),
+    var(--accent-secondary),
+    var(--accent-tertiary)
+  );
+  background-size: 200% auto;
+  animation: shimmer 2s linear infinite;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ANIMATIONS
+══════════════════════════════════════════════════════════════ */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes page-cinema-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.992);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes shell-arrive {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.992);
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes ambient-drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(22px, 18px, 0) scale(1.06); }
+}
+
+@keyframes waveform {
+  0%, 100% { transform: scaleY(0.65); opacity: 0.34; }
+  50%       { transform: scaleY(1.7);  opacity: 0.88; }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.2); }
+  50%       { box-shadow: 0 0 0 6px transparent; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shine {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes glass-shimmer {
+  0%   { opacity: 0.4; }
+  50%  { opacity: 0.8; }
+  100% { opacity: 0.4; }
+}
+
+@keyframes menuPop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0px) scale(1);
+  }
+}
+
+.animate-fade-in  { animation: fadeIn var(--transition-normal) both; }
+.animate-slide-in { animation: slideInLeft var(--transition-normal) both; }
+
+/* ══════════════════════════════════════════════════════════════
+   TOP BAR / TITLEBAR STYLING
+   Reduced transparency for better visual hierarchy
+══════════════════════════════════════════════════════════════ */
+.titlebar,
+.topbar,
+.window-controls,
+.app-titlebar {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255,255,255,0.08) 0%,
+      rgba(255,255,255,0.02) 100%
+    ),
+    rgba(7, 9, 22, 0.58) !important;
+
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════════════════════════════ */
+@media (max-width: 980px) {
+  :root {
+    --sidebar-width:     188px;
+    --titlebar-height:   44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration:        1ms !important;
+    animation-iteration-count: 1  !important;
+    scroll-behavior:           auto !important;
+    transition-duration:       1ms !important;
+  }
+}
+
+.no-animations * {
+  transition: none !important;
+  animation:  none !important;
+}

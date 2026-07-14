@@ -65,97 +65,131 @@ function createTray() {
 }
 
 /* ── Window ──────────────────────────────────────────────────── */
+
+// Windows 11's DWM `backgroundMaterial` API (Acrylic/Mica) does not exist
+// on Windows 10 — it's not a degraded version of the same feature, it's
+// simply absent. `os.release()` reports the kernel version as
+// "10.0.<build>" for both Windows 10 and 11; Windows 11 starts at build
+// 22000, so that's the only reliable way to distinguish them from Node.
+function getWindowsBuildNumber() {
+  if (process.platform !== 'win32') return 0
+  try {
+    const parts = os.release().split('.').map(Number)
+    return parts[2] || 0
+  } catch {
+    return 0
+  }
+}
+
+function supportsWin11BackgroundMaterial() {
+  return process.platform === 'win32' && getWindowsBuildNumber() >= 22000
+}
+
+// Defensive BrowserWindow creation. `transparent: true` combined with a
+// native material property is generally safe across Electron versions
+// (unsupported keys are ignored, not thrown), but a small number of
+// Linux compositor configurations reject alpha-channel windows outright.
+// If window creation itself throws, fall back to a fully opaque window
+// using Arcade OS's own base color rather than letting the app crash or
+// render invisibly.
+function createArcadeWindow(baseOptions, platformOptions) {
+  try {
+    return new BrowserWindow({ ...baseOptions, ...platformOptions })
+  } catch (err) {
+    console.warn(
+      'Native transparency/backdrop options were rejected by this platform, falling back to an opaque window:',
+      err.message
+    )
+    return new BrowserWindow({
+      ...baseOptions,
+      transparent: false,
+      backgroundColor: '#0c0f1f' // matches --bg-base, so the fallback still reads as Arcade OS
+    })
+  }
+}
+
 function createWindow() {
 
-  // ─────────────────────────────────────────────────────────────
-  // DETECT OS for platform-specific transparency method
-  // Windows 11  → backgroundMaterial: 'acrylic'  (DWM Acrylic)
-  // Windows 10  → backgroundMaterial: 'acrylic' still works partially;
-  //               add win.setBackgroundColor('') for extra clarity
-  // macOS       → vibrancy: 'fullscreen-ui' or 'sidebar'
-  // Linux       → transparent: true only (compositor-dependent)
+ // ─────────────────────────────────────────────────────────────
+  // PLATFORM-AWARE COMPOSITING PIPELINE
+  //
+  // OS/native backdrop or transparent compositor
+  //   ↓
+  // Electron BrowserWindow alpha surface (transparent: true)
+  //   ↓
+  // native background material, where genuinely supported:
+  //   Windows 11 (build ≥ 22000) → backgroundMaterial: 'acrylic' (real DWM
+  //     desktop blur, applied by the OS compositor, not by this app)
+  //   macOS                       → vibrancy (real NSVisualEffectView blur,
+  //     also OS compositor-driven)
+  //   Windows 10 / Linux          → no native blur API exists here; the
+  //     window is simply alpha-transparent, and translucency comes
+  //     entirely from the CSS glass layers below
+  //   ↓
+  // Arcade OS CSS: html/body/#root transparent, low-opacity shell tint
+  //   ↓
+  // CSS glass panels/cards (backdrop-filter blurs OTHER RENDERED CONTENT
+  //   inside this window — sidebar behind a card, for example — never the
+  //   real OS desktop; that distinction matters and was wrong before)
+  //   ↓
+  // UI content
   // ─────────────────────────────────────────────────────────────
   const isMac     = process.platform === 'darwin'
   const isWindows = process.platform === 'win32'
+  const isLinux   = process.platform === 'linux'
+  const win11BackgroundMaterial = supportsWin11BackgroundMaterial()
 
-  const win = new BrowserWindow({
-    width:  1400,
-    height: 900,
-    minWidth:  1000,
-    minHeight: 700,
-    show:  false,
-    frame: false,
-    titleBarStyle: 'hidden',
-    fullscreenable: true,
-    autoHideMenuBar: true,
+  const platformOptions = {}
 
-    // ─────────────────────────────────────────────────────────
-    // KEY FIX 1: Remove opaque backgroundColor
-    //
-    // BEFORE: backgroundColor: '#0a0a0f'
-    //   → Electron pre-paints the entire BrowserWindow surface in
-    //     this solid color BEFORE React renders. Even if CSS has
-    //     background: transparent, this layer blocks the desktop.
-    //     Think of it as a permanent opaque mat behind everything.
-    //
-    // AFTER: backgroundColor removed entirely (defaults to #00000000)
-    //   → Window surface starts fully transparent. CSS glass layers
-    //     now actually composite against the real desktop wallpaper.
-    // ─────────────────────────────────────────────────────────
+  if (isWindows && win11BackgroundMaterial) {
+    // Real native Acrylic — Windows 11 (DWM build ≥ 22000) only.
+    platformOptions.backgroundMaterial = 'acrylic'
+  } else if (isWindows) {
+    // Windows 10: no equivalent native material API in Electron/DWM.
+    // `transparent: true` below plus CSS glass is the entire story here.
+  } else if (isMac) {
+    // 'under-window' gives a clean native blur of whatever is behind the
+    // window without macOS's lighter 'fullscreen-ui' wash, which sits
+    // closer to Arcade OS's dark tinted aesthetic once the CSS tint
+    // layers on top of it.
+    platformOptions.vibrancy = 'under-window'
+    platformOptions.visualEffectState = 'active'
+  }
+  // Linux: intentionally no native material option is set. Electron has
+  // no cross-desktop-environment blur API; `transparent: true` is honored
+  // only if the running compositor (Mutter, KWin, Picom, etc.) supports
+  // ARGB visuals. There's no reliable way to query that from the main
+  // process, so we just request transparency and let the Arcade OS CSS
+  // glass tint carry the visual regardless of whether the compositor
+  // paints true blur behind it.
 
-    // ─────────────────────────────────────────────────────────
-    // KEY FIX 2: transparent: true
-    //
-    // Tells the OS compositor this window has an alpha channel.
-    // Without this, even rgba(0,0,0,0) in CSS renders as black
-    // because the window itself has no alpha — it's a solid rectangle.
-    //
-    // With transparent: true:
-    //   - Window chrome is alpha-composited against desktop
-    //   - backdrop-filter: blur() now blurs the ACTUAL desktop content
-    //   - CSS rgba() layers become genuinely translucent
-    // ─────────────────────────────────────────────────────────
-    transparent: true,
+  const win = createArcadeWindow(
+    {
+      width:  1400,
+      height: 900,
+      minWidth:  1000,
+      minHeight: 700,
+      show:  false,
+      frame: false,
+      titleBarStyle: 'hidden',
+      fullscreenable: true,
+      autoHideMenuBar: true,
 
-    // ─────────────────────────────────────────────────────────
-    // KEY FIX 3: Windows 11 Acrylic (native OS material)
-    //
-    // backgroundMaterial: 'acrylic' triggers DWM Acrylic on Win11.
-    // This is the SAME system used by Windows 11 taskbar, Start menu,
-    // and Settings. It applies:
-    //   - Real-time desktop blur (OS-level, not CSS)
-    //   - Noise texture overlay (subtle grain)
-    //   - Tint composite on top
-    //
-    // On Windows 10: degrades to 'none' gracefully (transparent still works)
-    // On macOS/Linux: property is ignored (vibrancy handles macOS below)
-    // ─────────────────────────────────────────────────────────
-    ...(isWindows && { backgroundMaterial: 'acrylic' }),
+      // No `backgroundColor` here on purpose: Electron would otherwise
+      // pre-paint the whole window surface in that solid color before
+      // React ever mounts, which blocks the desktop no matter what the
+      // CSS says. Omitting it defaults to a fully transparent surface.
+      transparent: true,
 
-    // ─────────────────────────────────────────────────────────
-    // KEY FIX 4: macOS Vibrancy
-    //
-    // vibrancy: 'fullscreen-ui' → same material as Spotlight, Control Center
-    // Applies native NSVisualEffectView over the entire window.
-    // Combined with transparent: true → full Liquid Glass effect.
-    //
-    // Options (pick based on desired darkness):
-    //   'fullscreen-ui'    → slightly lighter, good for big surfaces
-    //   'under-window'     → pure window blur, very clean
-    //   'sidebar'          → darker tinted blur (closer to our aesthetic)
-    //   'hud'              → darkest, most gaming-appropriate
-    //
-    // We use 'fullscreen-ui' as base; CSS tinting darkens to our theme.
-    // ─────────────────────────────────────────────────────────
-    ...(isMac && { vibrancy: 'fullscreen-ui', visualEffectState: 'active' }),
-
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+      icon: path.join(__dirname, '../public/icons/icon.ico'),
     },
-    icon: path.join(__dirname, '../public/icons/icon.ico'),
-  })
+    platformOptions
+  )
 
   mainWindow = win
 
@@ -170,14 +204,11 @@ function createWindow() {
     win.show()
     win.maximize()
 
-    // ─────────────────────────────────────────────────────────
-    // KEY FIX 5: Clear residual background color post-show
-    //
-    // On some Windows configurations, Electron applies a default
-    // background tint even with transparent: true. Calling
-    // setBackgroundColor('') or setBackgroundColor('#00000000')
-    // after show() clears this final layer.
-    // ─────────────────────────────────────────────────────────
+ // On some Windows configurations Electron still applies a default
+    // background tint to the native window surface even with
+    // transparent: true. This clears that surface-level alpha explicitly
+    // — it's an Electron/OS-level operation, unrelated to any CSS in the
+    // renderer.
     win.setBackgroundColor('#00000000')
   })
 
@@ -205,6 +236,27 @@ function createWindow() {
   })
 
   /* ── IPC: Window controls ────────────────────────────────── */
+  ipcMain.handle('fs:getFileIcon', async (_, filePath) => {
+    try {
+      if (!filePath || !fs.existsSync(filePath)) return null
+      const icon = await app.getFileIcon(filePath, { size: 'normal' })
+      return icon?.isEmpty?.() ? null : icon.toDataURL()
+    } catch (err) {
+      console.error('getFileIcon failed:', err.message)
+      return null
+    }
+  })
+
+  ipcMain.handle('fs:readFileBuffer', async (_, filePath) => {
+    try {
+      if (!filePath || !fs.existsSync(filePath)) return null
+      return fs.readFileSync(filePath)
+    } catch (err) {
+      console.error('readFileBuffer failed:', err.message)
+      return null
+    }
+  })
+
   ipcMain.handle('window:minimize',        () => win.minimize())
   ipcMain.handle('window:maximize',        () => {
     if (win.isMaximized()) win.unmaximize()
@@ -228,7 +280,7 @@ function loadData() {
       return JSON.parse(fs.readFileSync(dataPath, 'utf-8'))
     }
   } catch (e) {}
-  return { games: [], apps: [], settings: {}, launchCounts: {}, pinned: [] }
+  return { games: [], apps: [], settings: {}, launchCounts: {} }
 }
 
 function saveData(data) {
@@ -249,6 +301,108 @@ function knownFolder(location) {
   if (key === 'desktop')                     return path.join(home, 'Desktop')
   if (key === 'downloads' || key === 'download') return path.join(home, 'Downloads')
   return path.join(home, 'Documents')
+}
+
+function normalizeFsPath(targetPath) {
+  return path.resolve(String(targetPath || ''))
+}
+
+function getEntryPayload(fullPath) {
+  const stat = fs.statSync(fullPath)
+  return {
+    name: path.basename(fullPath),
+    isDirectory: stat.isDirectory(),
+    path: fullPath,
+    size: stat.isFile() ? stat.size : 0,
+    ext: path.extname(fullPath).toLowerCase(),
+    created: stat.birthtimeMs || stat.ctimeMs || Date.now(),
+    modified: stat.mtimeMs || Date.now(),
+  }
+}
+
+function pathWithin(parentPath, candidatePath) {
+  const parent = normalizeFsPath(parentPath)
+  const candidate = normalizeFsPath(candidatePath)
+  return candidate === parent || candidate.startsWith(`${parent}${path.sep}`)
+}
+
+function splitNameParts(name) {
+  const ext = path.extname(name)
+  return {
+    ext,
+    base: ext ? name.slice(0, -ext.length) : name,
+  }
+}
+
+function makeUniquePath(targetPath, { copyStyle = false } = {}) {
+  if (!fs.existsSync(targetPath)) return targetPath
+
+  const dir = path.dirname(targetPath)
+  const { name } = path.parse(targetPath)
+  const ext = path.extname(targetPath)
+  let index = 1
+
+  while (true) {
+    const candidateName = copyStyle
+      ? index === 1
+        ? `${name} copy${ext}`
+        : `${name} copy ${index}${ext}`
+      : index === 1
+        ? `${name} (${index})${ext}`
+        : `${name} (${index})${ext}`
+    const candidatePath = path.join(dir, candidateName)
+    if (!fs.existsSync(candidatePath)) return candidatePath
+    index += 1
+  }
+}
+
+function copyPathRecursive(sourcePath, targetPath) {
+  const stat = fs.statSync(sourcePath)
+  if (stat.isDirectory()) {
+    fs.mkdirSync(targetPath, { recursive: true })
+    for (const child of fs.readdirSync(sourcePath)) {
+      copyPathRecursive(path.join(sourcePath, child), path.join(targetPath, child))
+    }
+    return
+  }
+  fs.copyFileSync(sourcePath, targetPath)
+}
+
+function movePathRecursive(sourcePath, targetPath) {
+  try {
+    fs.renameSync(sourcePath, targetPath)
+  } catch (err) {
+    if (err.code !== 'EXDEV') throw err
+    copyPathRecursive(sourcePath, targetPath)
+    fs.rmSync(sourcePath, { recursive: true, force: true })
+  }
+}
+
+function remapFolderIconPaths(oldPath, newPath) {
+  const icons = folderIconStore.get('icons', {})
+  const next = {}
+
+  for (const [iconPath, iconValue] of Object.entries(icons)) {
+    if (pathWithin(oldPath, iconPath)) {
+      const suffix = iconPath.slice(normalizeFsPath(oldPath).length)
+      next[`${normalizeFsPath(newPath)}${suffix}`] = iconValue
+    } else {
+      next[iconPath] = iconValue
+    }
+  }
+
+  folderIconStore.set('icons', next)
+}
+
+function removeFolderIconPaths(targetPath) {
+  const icons = folderIconStore.get('icons', {})
+  const next = {}
+
+  for (const [iconPath, iconValue] of Object.entries(icons)) {
+    if (!pathWithin(targetPath, iconPath)) next[iconPath] = iconValue
+  }
+
+  folderIconStore.set('icons', next)
 }
 
 /* ── Browser candidates ──────────────────────────────────────── */
@@ -534,6 +688,8 @@ ipcMain.handle('fs:readDir', async (_, dirPath) => {
           path:        fullPath,
           size:        stat.isFile() ? stat.size : 0,
           ext:         path.extname(e.name).toLowerCase(),
+          created:     stat.birthtimeMs || stat.ctimeMs || Date.now(),
+          modified:    stat.mtimeMs || Date.now(),
         })
       } catch (err) {
         console.warn('Skipped file:', e.name, err.message)
@@ -543,6 +699,141 @@ ipcMain.handle('fs:readDir', async (_, dirPath) => {
   } catch (err) {
     console.error('readDir FAILED:', dirPath, err.message)
     return []
+  }
+})
+
+ipcMain.handle('fs:renamePath', async (_, targetPath, nextName) => {
+  try {
+    const sourcePath = normalizeFsPath(targetPath)
+    if (!fs.existsSync(sourcePath)) return { success: false, error: 'Path not found' }
+
+    const sourceStat = fs.statSync(sourcePath)
+    const currentName = path.basename(sourcePath)
+    const safeNextName = safeName(nextName)
+    if (!safeNextName) return { success: false, error: 'Invalid name' }
+
+    let finalName = safeNextName
+    if (!sourceStat.isDirectory()) {
+      const currentParts = splitNameParts(currentName)
+      const requestedParts = splitNameParts(safeNextName)
+      finalName = requestedParts.ext ? safeNextName : `${safeNextName}${currentParts.ext}`
+    }
+
+    if (finalName === currentName) {
+      return { success: true, path: sourcePath, isDirectory: sourceStat.isDirectory(), entry: getEntryPayload(sourcePath) }
+    }
+
+    const destinationPath = path.join(path.dirname(sourcePath), finalName)
+    if (fs.existsSync(destinationPath)) return { success: false, error: 'An item with that name already exists' }
+
+    fs.renameSync(sourcePath, destinationPath)
+    if (sourceStat.isDirectory()) remapFolderIconPaths(sourcePath, destinationPath)
+
+    return {
+      success: true,
+      oldPath: sourcePath,
+      path: destinationPath,
+      isDirectory: sourceStat.isDirectory(),
+      entry: getEntryPayload(destinationPath),
+    }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('fs:deletePath', async (_, targetPath) => {
+  try {
+    const normalizedPath = normalizeFsPath(targetPath)
+    if (!fs.existsSync(normalizedPath)) return { success: true, path: normalizedPath }
+
+    const stat = fs.statSync(normalizedPath)
+    fs.rmSync(normalizedPath, { recursive: true, force: true })
+    if (stat.isDirectory()) removeFolderIconPaths(normalizedPath)
+
+    return { success: true, path: normalizedPath, isDirectory: stat.isDirectory() }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('fs:createFolder', async (_, parentPath, rawName) => {
+  try {
+    const parent = normalizeFsPath(parentPath)
+    if (!fs.existsSync(parent)) return { success: false, error: 'Parent folder not found' }
+    const folderName = safeName(rawName || 'New Folder')
+    if (!folderName) return { success: false, error: 'Invalid folder name' }
+
+    const targetPath = makeUniquePath(path.join(parent, folderName))
+    fs.mkdirSync(targetPath, { recursive: true })
+
+    return { success: true, path: targetPath, isDirectory: true, entry: getEntryPayload(targetPath) }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('fs:createFile', async (_, parentPath, rawName, contents = '') => {
+  try {
+    const parent = normalizeFsPath(parentPath)
+    if (!fs.existsSync(parent)) return { success: false, error: 'Parent folder not found' }
+    const fileName = safeName(rawName || 'New File.txt')
+    if (!fileName) return { success: false, error: 'Invalid file name' }
+
+    const targetPath = makeUniquePath(path.join(parent, fileName))
+    fs.writeFileSync(targetPath, String(contents), 'utf8')
+
+    return { success: true, path: targetPath, isDirectory: false, entry: getEntryPayload(targetPath) }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('fs:movePath', async (_, sourcePath, destinationDir) => {
+  try {
+    const source = normalizeFsPath(sourcePath)
+    const targetDir = normalizeFsPath(destinationDir)
+    if (!fs.existsSync(source)) return { success: false, error: 'Source path not found' }
+    if (!fs.existsSync(targetDir)) return { success: false, error: 'Destination folder not found' }
+    if (!fs.statSync(targetDir).isDirectory()) return { success: false, error: 'Destination must be a folder' }
+    if (pathWithin(source, targetDir)) return { success: false, error: 'Cannot move a folder into itself' }
+
+    const stat = fs.statSync(source)
+    const targetPath = makeUniquePath(path.join(targetDir, path.basename(source)))
+    movePathRecursive(source, targetPath)
+    if (stat.isDirectory()) remapFolderIconPaths(source, targetPath)
+
+    return {
+      success: true,
+      oldPath: source,
+      path: targetPath,
+      isDirectory: stat.isDirectory(),
+      entry: getEntryPayload(targetPath),
+    }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+ipcMain.handle('fs:copyPath', async (_, sourcePath, destinationDir) => {
+  try {
+    const source = normalizeFsPath(sourcePath)
+    const targetDir = normalizeFsPath(destinationDir)
+    if (!fs.existsSync(source)) return { success: false, error: 'Source path not found' }
+    if (!fs.existsSync(targetDir)) return { success: false, error: 'Destination folder not found' }
+    if (!fs.statSync(targetDir).isDirectory()) return { success: false, error: 'Destination must be a folder' }
+
+    const targetPath = makeUniquePath(path.join(targetDir, path.basename(source)), { copyStyle: true })
+    copyPathRecursive(source, targetPath)
+
+    return {
+      success: true,
+      oldPath: source,
+      path: targetPath,
+      isDirectory: fs.statSync(source).isDirectory(),
+      entry: getEntryPayload(targetPath),
+    }
+  } catch (err) {
+    return { success: false, error: err.message }
   }
 })
 
@@ -563,6 +854,26 @@ ipcMain.handle('fs:drives', () => {
 ipcMain.handle('launch:open', async (_, filePath) => {
   try { await shell.openPath(filePath); return { success: true } }
   catch (err) { return { success: false, error: err.message } }
+})
+
+/* ── IPC: File location ──────────────────────────────────────── */
+ipcMain.handle('file:revealPath', async (_, filePath) => {
+  try {
+    if (!filePath || typeof filePath !== 'string') {
+      return { success: false, error: 'Invalid file path' }
+    }
+
+    const normalizedPath = path.resolve(filePath)
+    
+    if (!fs.existsSync(normalizedPath)) {
+      return { success: false, error: 'File or folder not found' }
+    }
+
+    shell.showItemInFolder(normalizedPath)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
 })
 
 /* ══════════════════════════════════════════════════════════════
