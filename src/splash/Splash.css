@@ -1,0 +1,339 @@
+:root {
+  --deep-purple: #7C3AED;
+  --electric-violet: #8B5CF6;
+  --electric-blue: #3B82F6;
+  --soft-cyan: #22D3EE;
+  --line-dim: rgba(139, 92, 246, 0.35);
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent !important;
+  overflow: hidden;
+}
+
+.arcade-boot {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ================= digital core ================= */
+.core-point {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--soft-cyan);
+  opacity: 0;
+  transform: scale(0.3);
+  will-change: transform, opacity;
+  transition: opacity 0.16s ease-out, transform 0.16s ease-out;
+}
+.phase-core .core-point,
+.phase-construct .core-point,
+.phase-scan .core-point {
+  opacity: 1;
+  transform: scale(1);
+}
+.phase-resolve .core-point,
+.phase-retract .core-point,
+.phase-identity .core-point,
+.phase-stabilize .core-point,
+.phase-powerdown .core-point,
+.phase-exit .core-point {
+  opacity: 0;
+  transform: scale(0.4);
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+/* ================= rotating rings ================= */
+.rings {
+  position: absolute;
+  width: 130px;
+  height: 130px;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+.ring {
+  fill: none;
+  stroke-width: 0.75;
+}
+.ring-outer { stroke: var(--electric-blue); }
+.ring-inner { stroke: var(--soft-cyan); }
+
+.phase-construct .rings,
+.phase-scan .rings {
+  opacity: 0.55;
+  transition: opacity 0.25s ease-out;
+}
+/* Finite rotation — plays once per phase, then holds. No infinite loop. */
+.phase-construct .ring-outer {
+  animation: spinOnce 0.9s cubic-bezier(.3,.8,.3,1) 1 forwards;
+}
+.phase-construct .ring-inner {
+  animation: spinOnceReverse 0.9s cubic-bezier(.3,.8,.3,1) 1 forwards;
+}
+@keyframes spinOnce {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(130deg); }
+}
+@keyframes spinOnceReverse {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-95deg); }
+}
+.phase-resolve .rings,
+.phase-retract .rings,
+.phase-identity .rings,
+.phase-stabilize .rings,
+.phase-powerdown .rings,
+.phase-exit .rings {
+  opacity: 0;
+  transition: opacity 0.3s ease-in;
+}
+
+/* ================= interface frame ================= */
+.frame {
+  position: absolute;
+  width: 148px;
+  height: 148px;
+  opacity: 0;
+  transform: scale(0.9);
+  will-change: transform, opacity;
+  transition: opacity 0.3s ease-out, transform 0.3s cubic-bezier(.2,.7,.2,1);
+}
+.frame-rect {
+  fill: none;
+  stroke: var(--line-dim);
+  stroke-width: 0.6;
+  stroke-dasharray: 480;
+  stroke-dashoffset: 480;
+}
+.frame-tick {
+  stroke: var(--electric-violet);
+  stroke-width: 1;
+  opacity: 0;
+}
+
+.phase-construct .frame,
+.phase-scan .frame {
+  opacity: 1;
+  transform: scale(1);
+}
+.phase-construct .frame-rect {
+  transition: stroke-dashoffset 0.6s cubic-bezier(.2,.7,.2,1);
+  stroke-dashoffset: 0;
+}
+.phase-construct .frame-tick,
+.phase-scan .frame-tick {
+  opacity: 1;
+  transition: opacity 0.3s ease-out;
+}
+
+/* Retract: frame scales in slightly and fades — reads as the
+   interface "collapsing back" rather than simply disappearing. */
+.phase-resolve .frame {
+  opacity: 0.6;
+  transform: scale(1.04);
+  transition: opacity 0.35s ease-out, transform 0.4s cubic-bezier(.2,.7,.2,1);
+}
+.phase-retract .frame,
+.phase-identity .frame,
+.phase-stabilize .frame,
+.phase-powerdown .frame,
+.phase-exit .frame {
+  opacity: 0;
+  transform: scale(1.12);
+  transition: opacity 0.35s ease-in, transform 0.4s ease-in;
+}
+
+/* ================= scan sweep ================= */
+.scan-line {
+  position: absolute;
+  width: 120px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--soft-cyan), transparent);
+  opacity: 0;
+  transform: translateY(-40px);
+  will-change: transform, opacity;
+}
+.phase-scan .scan-line {
+  opacity: 0.8;
+  transform: translateY(40px);
+  transition: opacity 0.2s ease-out, transform 0.5s cubic-bezier(.3,.6,.3,1);
+}
+.phase-resolve .scan-line,
+.phase-retract .scan-line,
+.phase-identity .scan-line,
+.phase-stabilize .scan-line,
+.phase-powerdown .scan-line,
+.phase-exit .scan-line {
+  opacity: 0;
+  transition: opacity 0.2s ease-in;
+}
+
+/* ================= segmented indicators ================= */
+.indicators {
+  position: absolute;
+  width: 160px;
+  height: 160px;
+  pointer-events: none;
+}
+.indicator {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 1px;
+  background: var(--electric-blue);
+  opacity: 0;
+  top: 50%;
+  left: 50%;
+  transform-origin: 0 0;
+  transform: rotate(calc(var(--i) * 60deg)) translateX(78px) scale(0.5);
+  will-change: transform, opacity;
+}
+.phase-scan .indicator {
+  opacity: 0.9;
+  transform: rotate(calc(var(--i) * 60deg)) translateX(78px) scale(1);
+  transition: opacity 0.25s ease-out, transform 0.3s cubic-bezier(.2,.7,.2,1);
+  transition-delay: calc(var(--i) * 30ms);
+}
+.phase-resolve .indicator,
+.phase-retract .indicator,
+.phase-identity .indicator,
+.phase-stabilize .indicator,
+.phase-powerdown .indicator,
+.phase-exit .indicator {
+  opacity: 0;
+  transition: opacity 0.25s ease-in;
+}
+
+/* ================= logo ================= */
+.logo-wrap {
+  position: absolute;
+  width: 84px;
+  height: 84px;
+  opacity: 0;
+  transform: scale(0.5);
+  filter: drop-shadow(0 0 0 rgba(124, 58, 237, 0));
+  will-change: transform, opacity, filter;
+}
+.logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.phase-resolve .logo-wrap {
+  opacity: 1;
+  transform: scale(1.05);
+  transition: opacity 0.4s ease-out, transform 0.42s cubic-bezier(.2,.7,.2,1);
+}
+.phase-retract .logo-wrap,
+.phase-identity .logo-wrap,
+.phase-stabilize .logo-wrap {
+  opacity: 1;
+  transform: scale(1);
+  filter: drop-shadow(0 0 12px rgba(139, 92, 246, 0.5));
+  transition: transform 0.35s cubic-bezier(.3,1.2,.4,1), filter 0.4s ease-out;
+}
+/* quiet power-down: one subtle dim pulse, not a repeated glitch */
+.phase-powerdown .logo-wrap {
+  opacity: 1;
+  transform: scale(1);
+  filter: drop-shadow(0 0 6px rgba(139, 92, 246, 0.3));
+  animation: dimPulse 260ms ease-in-out 1;
+}
+@keyframes dimPulse {
+  0%   { opacity: 1; }
+  45%  { opacity: 0.75; }
+  100% { opacity: 1; }
+}
+.phase-exit .logo-wrap {
+  opacity: 0;
+  transform: scale(1.06);
+  transition: opacity 0.3s ease-in, transform 0.3s ease-in;
+}
+
+/* ================= wordmark ================= */
+.wordmark-wrap {
+  position: absolute;
+  margin-top: 120px;
+  overflow: hidden;
+  clip-path: inset(0 100% 0 0);
+  will-change: clip-path, opacity;
+}
+.wordmark-text {
+  display: inline-block;
+  font-family: "Segoe UI", "Inter", system-ui, sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 7px;
+  color: #ECE7FF;
+  text-transform: uppercase;
+  opacity: 0;
+  transform: translateX(-6px);
+  will-change: transform, opacity;
+}
+.phase-identity .wordmark-wrap {
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 0.55s cubic-bezier(.2,.7,.2,1);
+}
+.phase-identity .wordmark-text,
+.phase-stabilize .wordmark-text,
+.phase-powerdown .wordmark-text {
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 0.45s ease-out, transform 0.45s cubic-bezier(.2,.7,.2,1);
+}
+.phase-stabilize .wordmark-wrap,
+.phase-powerdown .wordmark-wrap {
+  clip-path: inset(0 0 0 0);
+}
+.phase-exit .wordmark-wrap {
+  clip-path: inset(0 0 0 0);
+  opacity: 0;
+  transition: opacity 0.3s ease-in;
+}
+
+/* ================= reduced motion ================= */
+@media (prefers-reduced-motion: reduce) {
+  .rings, .frame, .scan-line, .indicators, .core-point {
+    display: none;
+  }
+  .logo-wrap {
+    transform: none;
+  }
+  .phase-resolve .logo-wrap,
+  .phase-identity .logo-wrap,
+  .phase-stabilize .logo-wrap {
+    opacity: 1;
+    transform: none;
+    transition: opacity 0.4s ease-out;
+    animation: none;
+  }
+  .wordmark-wrap {
+    clip-path: none;
+  }
+  .wordmark-text {
+    transform: none;
+  }
+  .phase-identity .wordmark-text,
+  .phase-stabilize .wordmark-text {
+    opacity: 1;
+    transition: opacity 0.4s ease-out;
+  }
+  .phase-exit .logo-wrap,
+  .phase-exit .wordmark-wrap {
+    opacity: 0;
+    transition: opacity 0.3s ease-in;
+  }
+}

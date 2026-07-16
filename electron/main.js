@@ -14,7 +14,7 @@ const folderIconStore = new Store({
 })
 
 const {
-  app, BrowserWindow, ipcMain, shell, dialog,
+  app, BrowserWindow, ipcMain, shell, dialog, screen,
   Tray, Menu, nativeImage
 } = require('electron')
 const { execFile } = require('child_process')
@@ -63,7 +63,64 @@ function createTray() {
   ]))
   tray.on('click', () => { mainWindow?.show(); mainWindow?.focus() })
 }
+let splashWindow = null
+let mainWindowReady = false
+let splashAnimationReady = false
 
+function resolveSplashHtmlPath() {
+  if (isDev) {
+    return 'http://localhost:5173/splash.html'
+  }
+  return path.join(__dirname, '../dist/splash.html')
+}
+
+function createSplashWindow() {
+  const primaryDisplay = screen.getPrimaryDisplay()
+  const { width, height } = primaryDisplay.workAreaSize
+
+  splashWindow = new BrowserWindow({
+    width: 420,
+    height: 420,
+    x: Math.round(primaryDisplay.bounds.x + (width - 420) / 2),
+    y: Math.round(primaryDisplay.bounds.y + (height - 420) / 2),
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    show: false,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: path.join(__dirname, 'splash-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    }
+  })
+
+  splashWindow.loadURL(resolveSplashHtmlPath())
+
+  splashWindow.once('ready-to-show', () => {
+    splashWindow.show()
+  })
+
+  splashWindow.on('closed', () => {
+    splashWindow = null
+  })
+}
+
+function maybeFinishStartup(win) {
+  if (!mainWindowReady || !splashAnimationReady) return
+
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.close()
+  }
+
+  win.show()
+  win.maximize()
+  win.setBackgroundColor('#00000000')
+  win.focus()
+}
 /* ── Window ──────────────────────────────────────────────────── */
 
 // Windows 11's DWM `backgroundMaterial` API (Acrylic/Mica) does not exist
@@ -200,17 +257,10 @@ function createWindow() {
     win.loadFile(path.join(__dirname, '../dist/index.html'))
   }
 
-  win.once('ready-to-show', () => {
-    win.show()
-    win.maximize()
-
-// On some Windows configurations Electron still applies a default
-    // background tint to the native window surface even with
-    // transparent: true. This clears that surface-level alpha explicitly
-    // — it's an Electron/OS-level operation, unrelated to any CSS in the
-    // renderer.
-    win.setBackgroundColor('#00000000')
-  })
+win.once('ready-to-show', () => {
+    mainWindowReady = true
+    maybeFinishStartup(win)
+})
 
   win.on('close', (event) => {
     if (isQuitting) return
@@ -266,7 +316,10 @@ function createWindow() {
   ipcMain.handle('window:close',           () => win.close())
   ipcMain.handle('window:isMaximized',     () => win.isMaximized())
   ipcMain.handle('window:isFullscreen',    () => win.isFullScreen())
-
+ipcMain.on('splash:animation-ready', () => {
+  splashAnimationReady = true
+  maybeFinishStartup(win)
+})
   win.on('maximize',           () => win.webContents.send('window:maximized', true))
   win.on('unmaximize',         () => win.webContents.send('window:maximized', false))
   win.on('enter-full-screen',  () => win.webContents.send('window:fullscreen', true))
@@ -931,6 +984,7 @@ ipcMain.handle('system:info', () => cachedSystem)
    APP READY
 ══════════════════════════════════════════════════════════════ */
 app.whenReady().then(() => {
+  createSplashWindow()
   createWindow()
   createTray()
 
