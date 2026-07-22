@@ -42,7 +42,7 @@ export default function AIHub() {
   )
 
   const buildSystemPrompt = useCallback(() => {
-    return `You are an expert AI gaming assistant integrated into Arcade OS, a premium desktop gaming launcher. 
+    return `You are an expert AI gaming assistant integrated into Arcade Kernel, a premium desktop gaming launcher. 
 You help users with game recommendations, tips, strategies, and library management.
 The user's game library includes: ${gameList || 'no games yet'}.
 Be concise, enthusiastic about gaming, and always personalize responses based on their library.

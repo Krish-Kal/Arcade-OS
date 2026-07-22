@@ -37,7 +37,8 @@ const createChatSlice = (set) => ({
     {
       id: 1,
       role: 'assistant',
-      content: 'Welcome to Arcade OS AI Hub. How can I help you today?'
+      content: 'Welcome to AI Hub. How can I help you today?'
+
     }
   ],
 

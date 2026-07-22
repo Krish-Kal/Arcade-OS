@@ -14,8 +14,7 @@ const folderIconStore = new Store({
 })
 
 const {
-  app, BrowserWindow, ipcMain, shell, dialog, screen,
-  Tray, Menu, nativeImage
+  app, BrowserWindow, ipcMain, shell, dialog, screen
 } = require('electron')
 const { execFile } = require('child_process')
 const path = require('path')
@@ -27,42 +26,11 @@ const isDev = !app.isPackaged
 const dataPath = path.join(app.getPath('userData'), 'arcade-os-data.json')
 
 let mainWindow = null
-let tray       = null
-let isQuitting = false
 
 function iconPath() {
   return path.join(__dirname, '../public/icons/icon.png')
 }
 
-/* ── Tray ────────────────────────────────────────────────────── */
-function createTray() {
-  if (tray) return
-
-  const icon = nativeImage.createFromPath(
-  path.join(__dirname, '../public/icons/icon.ico')
-)
-  tray = new Tray(
-    icon.isEmpty() ? nativeImage.createEmpty() : icon.resize({ width: 16, height: 16 })
-  )
-  tray.setToolTip('Arcade OS - ambient command layer')
-  tray.setContextMenu(Menu.buildFromTemplate([
-    {
-      label: 'Open Arcade OS',
-      click: () => { mainWindow?.show(); mainWindow?.focus() },
-    },
-    {
-      label: 'Quick Command',
-      click: () => {
-        mainWindow?.show()
-        mainWindow?.focus()
-        mainWindow?.webContents.send('ai:quick-command')
-      },
-    },
-    { type: 'separator' },
-    { label: 'Quit', click: () => { isQuitting = true; app.quit() } },
-  ]))
-  tray.on('click', () => { mainWindow?.show(); mainWindow?.focus() })
-}
 let splashWindow = null
 let mainWindowReady = false
 let splashAnimationReady = false
@@ -243,7 +211,7 @@ function createWindow() {
         contextIsolation: true,
         nodeIntegration: false,
       },
-      icon: path.join(__dirname, '../public/icons/icon.ico'),
+      icon: path.join(__dirname, '../public/icons/favicon.ico'),
     },
     platformOptions
   )
@@ -262,11 +230,9 @@ win.once('ready-to-show', () => {
     maybeFinishStartup(win)
 })
 
-  win.on('close', (event) => {
-    if (isQuitting) return
-    event.preventDefault()
-    win.hide()
-  })
+win.on('close', () => {
+  mainWindow = null
+})
 
   /* ── IPC: File system ────────────────────────────────────── */
   ipcMain.handle('fs:readIconAsBase64', async (_, filePath) => {
@@ -313,7 +279,9 @@ win.once('ready-to-show', () => {
     else win.maximize()
   })
   ipcMain.handle('window:toggleFullscreen', () => win.setFullScreen(!win.isFullScreen()))
-  ipcMain.handle('window:close',           () => win.close())
+ipcMain.handle('window:close', () => {
+  app.quit()
+})
   ipcMain.handle('window:isMaximized',     () => win.isMaximized())
   ipcMain.handle('window:isFullscreen',    () => win.isFullScreen())
 ipcMain.on('splash:animation-ready', () => {
@@ -986,7 +954,6 @@ ipcMain.handle('system:info', () => cachedSystem)
 app.whenReady().then(() => {
   createSplashWindow()
   createWindow()
-  createTray()
 
   /* ── Folder icon IPC ─────────────────────────────────────── */
   ipcMain.handle('fs:selectIconFile', async () => {
@@ -1023,5 +990,6 @@ app.whenReady().then(() => {
   })
 })
 
-app.on('before-quit',    () => { isQuitting = true })
-app.on('window-all-closed', () => { /* keep alive in tray */ })
+app.on('window-all-closed', () => {
+  app.quit()
+})

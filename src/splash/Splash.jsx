@@ -6,7 +6,7 @@ import { playBootSound } from "./bootSound";
 import logoImage from "../assets/icon.png";
 
 /**
- * Arcade OS — System Initialization Splash
+ * Arcade KERNEL — System Initialization Splash
  * ------------------------------------------------------------
  * Concept: this is not "a logo playing an animation." The visual
  * language reads as a system activating — a digital core forms,
@@ -25,7 +25,7 @@ import logoImage from "../assets/icon.png";
  * ------------------------------------------------------------
  */
 
-const WORDMARK = "ARCADE OS";
+const WORDMARK = "ARCADE KERNEL";
 
 // Boot sequence timeline (ms).
 const TIMELINE = [

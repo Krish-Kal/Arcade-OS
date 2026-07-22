@@ -74,7 +74,7 @@ export default function TitleBar() {
       textShadow: '0 0 18px rgba(91,140,255,0.28)',
     }}
   >
-    Arcade OS
+    Arcade Kernel
   </span>
 </div>
       

@@ -1,7 +1,7 @@
 {
-  "name": "arcade-os",
+  "name": "arcade-Kernel",
   "version": "1.0.0",
-  "description": "Arcade OS - The Ultimate Desktop Gaming & App Launcher",
+  "description": "Arcade Kernel - The Ultimate Desktop Gaming & App Launcher",
   "main": "electron/main.js",
   "type": "commonjs",
   "scripts": {
@@ -34,8 +34,8 @@
     "wait-on": "^7.2.0"
   },
  "build": {
-  "appId": "com.arcadeos.app",
-  "productName": "Arcade OS",
+  "appId": "com.arcade.app",
+  "productName": "Arcade Kernel",
 
   "directories": {
     "output": "release"
@@ -65,7 +65,7 @@
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "Arcade OS"
+    "shortcutName": "Arcade Kernel"
   },
 
   "mac": {
