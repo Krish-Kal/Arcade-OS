@@ -738,7 +738,17 @@ const GridCard = React.memo(function GridCard({
       }}>
         {entryIsDirectory ? (
           customIconSrc ? (
-            <img src={customIconSrc} style={{ width: 36, height: 36, objectFit: 'contain', borderRadius: 8 }} />
+            <div style={{ width: 42, height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: 8 }}>
+              <img
+                src={customIconSrc}
+                alt={entryName}
+                style={{
+                  width: '100%', height: '100%',
+                  display: 'block', objectFit: 'contain', objectPosition: 'center',
+                  borderRadius: 8, imageRendering: 'auto',
+                }}
+              />
+            </div>
           ) : (
             <Folder size={36} color={folderStyle.color} />
           )
@@ -969,7 +979,6 @@ export default function FileExplorer() {
   const createFolder = useFileExplorerStore(state => state.createFolder)
   const renameEntry = useFileExplorerStore(state => state.renameEntry)
   const deleteEntries = useFileExplorerStore(state => state.deleteEntries)
-  const duplicateEntry = useFileExplorerStore(state => state.duplicateEntry)
   const pasteInto = useFileExplorerStore(state => state.pasteInto)
   const moveEntry = useFileExplorerStore(state => state.moveEntry)
   const setClipboard = useFileExplorerStore(state => state.setClipboard)
@@ -1459,16 +1468,6 @@ export default function FileExplorer() {
     } catch {}
     setSelectedPaths(new Set())
   }, [selectedPaths, contextMenu.entry, closeContextMenu, deleteEntries, reloadIcons])
-
-  const handleDuplicate = useCallback(async () => {
-    const entry = contextMenu.entry
-    closeContextMenu()
-    if (!entry) return
-    try {
-      await duplicateEntry(safePath(entry.path))
-      if (entry.isDirectory) await reloadIcons()
-    } catch {}
-  }, [contextMenu.entry, closeContextMenu, duplicateEntry, reloadIcons])
 
   const handlePaste = useCallback(async () => {
     if (!clipboard || clipboard.paths.length === 0) return
@@ -2485,12 +2484,9 @@ export default function FileExplorer() {
               <div className="ctx-divider" />
               <ContextMenuItem onClick={() => startRename(contextMenu.entry)}><FileText size={13} />Rename</ContextMenuItem>
               <ContextMenuItem onClick={handleCopy}><Copy size={13} />Copy</ContextMenuItem>
-              <ContextMenuItem onClick={handleDuplicate}><Copy size={13} />Duplicate</ContextMenuItem>
               <ContextMenuItem
                 onClick={() => { const path = contextMenu.entry?.path; closeContextMenu(); if (!path || !navigator?.clipboard?.writeText) return; navigator.clipboard.writeText(path).catch(() => {}) }}
               ><Cpu size={13} />Copy Path</ContextMenuItem>
-
-
 
               {contextMenu.entry?.isDirectory && (
                 <>

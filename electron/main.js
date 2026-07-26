@@ -16,7 +16,7 @@ const folderIconStore = new Store({
 const {
   app, BrowserWindow, ipcMain, shell, dialog, screen
 } = require('electron')
-const { execFile } = require('child_process')
+const { execFile, spawn } = require('child_process')
 const path = require('path')
 const fs   = require('fs')
 const os   = require('os')
@@ -377,25 +377,125 @@ function makeUniquePath(targetPath, { copyStyle = false } = {}) {
   }
 }
 
-function copyPathRecursive(sourcePath, targetPath) {
-  const stat = fs.statSync(sourcePath)
-  if (stat.isDirectory()) {
-    fs.mkdirSync(targetPath, { recursive: true })
-    for (const child of fs.readdirSync(sourcePath)) {
-      copyPathRecursive(path.join(sourcePath, child), path.join(targetPath, child))
-    }
-    return
-  }
-  fs.copyFileSync(sourcePath, targetPath)
+function powershellEncodedCommand(scriptText) {
+  return Buffer.from(scriptText, 'utf16le').toString('base64')
 }
 
-function movePathRecursive(sourcePath, targetPath) {
-  try {
-    fs.renameSync(sourcePath, targetPath)
-  } catch (err) {
-    if (err.code !== 'EXDEV') throw err
-    copyPathRecursive(sourcePath, targetPath)
-    fs.rmSync(sourcePath, { recursive: true, force: true })
+function runWindowsShellCommand(scriptText) {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-EncodedCommand',
+        powershellEncodedCommand(scriptText),
+      ],
+      { windowsHide: true },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(stderr?.trim() || error.message || 'Windows shell operation failed'))
+          return
+        }
+        resolve({ stdout, stderr })
+      }
+    )
+  })
+}
+
+function normalizeShellPath(targetPath) {
+  return String(targetPath || '').replace(/\//g, '\\')
+}
+
+function escapePowerShellSingleQuoted(value) {
+  return String(value || '').replace(/'/g, "''")
+}
+
+async function shellCopyItem(sourcePath, destinationDir) {
+  const source = normalizeFsPath(sourcePath)
+  const destination = normalizeFsPath(destinationDir)
+  const sourceParent = path.dirname(source)
+  const sourceName = path.basename(source)
+
+  const script = `
+  $shell = New-Object -ComObject Shell.Application
+  $destinationFolder = $shell.NameSpace('${escapePowerShellSingleQuoted(normalizeShellPath(destination))}')
+  $sourceParentFolder = $shell.NameSpace('${escapePowerShellSingleQuoted(normalizeShellPath(sourceParent))}')
+  $sourceItem = $sourceParentFolder.ParseName('${escapePowerShellSingleQuoted(sourceName)}')
+
+  if ($null -eq $sourceItem) {
+    throw 'Unable to resolve source item for shell copy.'
+  }
+
+  $destinationFolder.CopyHere($sourceItem, 0)
+  `
+
+  await runWindowsShellCommand(script)
+
+  return {
+    success: true,
+    oldPath: source,
+    path: path.join(destination, sourceName),
+    isDirectory: fs.statSync(source).isDirectory(),
+    entry: getEntryPayload(path.join(destination, sourceName)),
+  }
+}
+
+async function shellMoveItem(sourcePath, destinationDir) {
+  const source = normalizeFsPath(sourcePath)
+  const destination = normalizeFsPath(destinationDir)
+  const sourceParent = path.dirname(source)
+  const sourceName = path.basename(source)
+
+  const script = `
+  $shell = New-Object -ComObject Shell.Application
+  $destinationFolder = $shell.NameSpace('${escapePowerShellSingleQuoted(normalizeShellPath(destination))}')
+  $sourceParentFolder = $shell.NameSpace('${escapePowerShellSingleQuoted(normalizeShellPath(sourceParent))}')
+  $sourceItem = $sourceParentFolder.ParseName('${escapePowerShellSingleQuoted(sourceName)}')
+
+  if ($null -eq $sourceItem) {
+    throw 'Unable to resolve source item for shell move.'
+  }
+
+  $destinationFolder.MoveHere($sourceItem, 0)
+  `
+
+  await runWindowsShellCommand(script)
+
+  return {
+    success: true,
+    oldPath: source,
+    path: path.join(destination, sourceName),
+    isDirectory: fs.statSync(source).isDirectory(),
+    entry: getEntryPayload(path.join(destination, sourceName)),
+  }
+}
+
+async function shellDeleteItem(targetPath) {
+  const normalizedPath = normalizeFsPath(targetPath)
+  const parent = path.dirname(normalizedPath)
+  const name = path.basename(normalizedPath)
+
+  const script = `
+  $shell = New-Object -ComObject Shell.Application
+  $parentFolder = $shell.NameSpace('${escapePowerShellSingleQuoted(normalizeShellPath(parent))}')
+  $targetItem = $parentFolder.ParseName('${escapePowerShellSingleQuoted(name)}')
+
+  if ($null -eq $targetItem) {
+    throw 'Unable to resolve source item for shell delete.'
+  }
+
+  $targetItem.InvokeVerb('delete')
+  `
+
+  await runWindowsShellCommand(script)
+
+  return {
+    success: true,
+    path: normalizedPath,
+    isDirectory: fs.statSync(normalizedPath).isDirectory(),
   }
 }
 
@@ -768,6 +868,13 @@ ipcMain.handle('fs:deletePath', async (_, targetPath) => {
     if (!fs.existsSync(normalizedPath)) return { success: true, path: normalizedPath }
 
     const stat = fs.statSync(normalizedPath)
+
+    if (process.platform === 'win32') {
+      const result = await shellDeleteItem(normalizedPath)
+      if (stat.isDirectory()) removeFolderIconPaths(normalizedPath)
+      return result
+    }
+
     fs.rmSync(normalizedPath, { recursive: true, force: true })
     if (stat.isDirectory()) removeFolderIconPaths(normalizedPath)
 
@@ -819,6 +926,13 @@ ipcMain.handle('fs:movePath', async (_, sourcePath, destinationDir) => {
     if (pathWithin(source, targetDir)) return { success: false, error: 'Cannot move a folder into itself' }
 
     const stat = fs.statSync(source)
+
+    if (process.platform === 'win32') {
+      const result = await shellMoveItem(source, targetDir)
+      if (stat.isDirectory()) remapFolderIconPaths(source, result.path)
+      return result
+    }
+
     const targetPath = makeUniquePath(path.join(targetDir, path.basename(source)))
     movePathRecursive(source, targetPath)
     if (stat.isDirectory()) remapFolderIconPaths(source, targetPath)
@@ -842,6 +956,10 @@ ipcMain.handle('fs:copyPath', async (_, sourcePath, destinationDir) => {
     if (!fs.existsSync(source)) return { success: false, error: 'Source path not found' }
     if (!fs.existsSync(targetDir)) return { success: false, error: 'Destination folder not found' }
     if (!fs.statSync(targetDir).isDirectory()) return { success: false, error: 'Destination must be a folder' }
+
+    if (process.platform === 'win32') {
+      return await shellCopyItem(source, targetDir)
+    }
 
     const targetPath = makeUniquePath(path.join(targetDir, path.basename(source)), { copyStyle: true })
     copyPathRecursive(source, targetPath)

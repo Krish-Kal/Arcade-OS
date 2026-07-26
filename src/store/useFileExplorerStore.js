@@ -355,16 +355,6 @@ export const useFileExplorerStore = create(
         return deleted
       },
 
-      duplicateEntry: async (targetPath) => {
-        if (!isElectron) return null
-        const sourcePath = safePath(targetPath)
-        const parentPath = getParentPath(sourcePath)
-        const result = await window.arcadeOS.fs.copyPath(sourcePath, parentPath)
-        if (!result?.success) throw new Error(result?.error || 'Failed to duplicate item')
-        await refreshDirectoryPath(parentPath, set)
-        return result
-      },
-
       pasteInto: async (destinationPath) => {
         if (!isElectron) return []
         const clipboard = get().clipboard
